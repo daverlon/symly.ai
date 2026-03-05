@@ -1,0 +1,58 @@
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+
+# =========================
+# Backend (Spring Boot / Maven)
+# =========================
+backend/target/
+**/target/
+*.class
+*.jar
+*.war
+
+# Maven wrapper local cache
+.mvn/
+
+# =========================
+# Frontend (Vite / Node)
+# =========================
+frontend/node_modules/
+**/node_modules/
+
+frontend/dist/
+**/dist/
+
+frontend/.vite/
+**/.vite/
+
+# Environment files (IMPORTANT)
+*.env
+*.env.local
+*.env.*.local
+
+# =========================
+# IDEs
+# =========================
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# =========================
+# Docker
+# =========================
+*.pid
+
+# =========================
+# Security / Secrets
+# =========================
+secrets/
