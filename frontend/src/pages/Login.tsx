@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { createCustomer } from "../api/customerApi"
+import { signupAccount } from "../api/accountsApi"
 
 export default function Login() {
 
@@ -9,23 +9,12 @@ export default function Login() {
   async function handleLogin(e: React.SubmitEvent) {
     e.preventDefault()
     try {
-        const result = await createCustomer(username, password)
+        const result = await signupAccount(username, password)
         console.log("login result:", result)
+        // alert("Accont created!");
     } catch (err) {
         console.error ("login failed", err)
     }
-
-
-    // try {
-    //   const result = await login(username, password)
-    //   console.log("login result:", result)
-
-    //   // later you might store JWT
-    //   // localStorage.setItem("token", result.token)
-
-    // } catch (err) {
-    //   console.error("login failed", err)
-    // }
   }
 
   return (
