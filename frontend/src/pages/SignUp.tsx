@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { signupAccount } from "../api/accountsApi"
+import { Link } from "react-router-dom"
 
 export default function SignUp() {
 
@@ -9,18 +10,29 @@ export default function SignUp() {
 
     async function handleSignUp(e: React.SubmitEvent) {
         e.preventDefault()
+        if (!(password===passwordConfirmation)) {
+            alert("Password confirmation must match.");
+            return;
+        }
         try {
             const result = await signupAccount(username, password)
             console.log("login result:", result)
             alert(result);
         } catch (err) {
             console.error("signup failed.")
-            alert("fail");
+            if (err instanceof Error) {
+                alert(err.message);
+            }
         }
     }
 
   return (
-    <div className="h-screen w-screen flex items-center justify-center bg-gray-200">
+    <div className="h-screen w-screen flex flex-col items-center justify-center bg-gray-200">
+
+
+      <div className="w-80">
+        <Link to="/" className="bg-blue-300 rounded-sm px-5 text-center self-start">Back</Link>
+    </div>
 
       <form
         onSubmit={handleSignUp}

@@ -1,5 +1,6 @@
 import { useState } from "react"
-import { signupAccount } from "../api/accountsApi"
+import { loginAccount } from "../api/accountsApi"
+import { Link } from "react-router-dom"
 
 export default function Login() {
 
@@ -9,16 +10,23 @@ export default function Login() {
   async function handleLogin(e: React.SubmitEvent) {
     e.preventDefault()
     try {
-        const result = await signupAccount(username, password)
+        const result = await loginAccount(username, password)
         console.log("login result:", result)
         // alert("Accont created!");
     } catch (err) {
+        if (err instanceof Error) {
+            alert(err.message);
+        }
         console.error ("login failed", err)
     }
   }
 
   return (
-    <div className="h-screen w-screen flex items-center justify-center bg-gray-200">
+    <div className="h-screen w-screen flex flex-col items-center justify-center bg-gray-200">
+
+      <div className="w-80">
+        <Link to="/" className="bg-blue-300 rounded-sm px-5 text-center self-start">Back</Link>
+    </div>
 
       <form
         onSubmit={handleLogin}

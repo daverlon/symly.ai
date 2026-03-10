@@ -1,8 +1,11 @@
 package app.symbiol.backend.service;
 
-import org.springframework.data.domain.Example;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import app.symbiol.backend.exception.AccountAlreadyExistsException;
+import app.symbiol.backend.exception.AccountNotFoundException;
+import app.symbiol.backend.exception.IncorrectPasswordException;
 import app.symbiol.backend.model.Account;
 import app.symbiol.backend.repository.AccountRepository;
 
@@ -10,17 +13,31 @@ import app.symbiol.backend.repository.AccountRepository;
 public class AccountService {
     public final AccountRepository accountRepository;
 
-    public AccountService(AccountRepository accountRepository) {
+    private final PasswordEncoder passwordEncoder;
+
+    public AccountService(AccountRepository accountRepository, PasswordEncoder passwordEncoder) {
         this.accountRepository = accountRepository;
+        this.passwordEncoder = passwordEncoder;
     }
        
-    public void createaccount(String firstName, String lastName) {
-        accountRepository.save(new Account(firstName, lastName));
+    public void createAccount(String username, String password) {
+        if (accountRepository.existsByUsername(username)) {
+            throw new AccountAlreadyExistsException(username);
+        }
+        String hashedPassword = passwordEncoder.encode(password);
+
+        accountRepository.save(new Account(username, hashedPassword));
     }
 
-    public boolean accountExists(String firstName, String lastName) {
-        Account probe = new Account(firstName, lastName);
-        Example<Account> example = Example.of(probe);
-        return accountRepository.exists(example);
+    public void validateAccount(String username, String password) {
+        Account account = accountRepository.findByUsername(username).orElseThrow(() -> new IncorrectPasswordException());
+
+        if (!passwordEncoder.matches(password, account.getHashedPassword())) {
+            throw new IncorrectPasswordException();
+        }
+    }
+
+    public boolean accountExistsByUsername(String username) {
+        return accountRepository.existsByUsername(username);
     }
 }

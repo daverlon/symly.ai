@@ -21,7 +21,7 @@ public class AccountController {
 
     @PostMapping
     public ResponseEntity<String> createaccount(@RequestBody AccountDto dto) {
-
+        accountService.createAccount(dto.getUsername(), dto.getPassword());
         return ResponseEntity.status(200).body("Account created");
     }
 

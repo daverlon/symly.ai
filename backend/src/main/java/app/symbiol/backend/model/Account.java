@@ -14,25 +14,20 @@ public class Account {
     @GeneratedValue(strategy=GenerationType.AUTO)
     private Long id;
 
-    private String firstName;
-    private String lastName;
     private Date creationDate;
+    private String username;
+    private String hashedPassword;
 
     protected Account() {};
 
-    public Account(String firstName, String lastName) {
-        this.firstName = firstName;
-        this.lastName = lastName;
+    public Account(String firstName, String hashedPassword) {
         this.creationDate = new Date(System.currentTimeMillis());
-    }
-
-    @Override
-    public String toString() {
-        return String.format("account[id=%d, firstName=%s, lastName=%s]");
+        this.username = firstName;
+        this.hashedPassword = hashedPassword;
     }
 
     public Long getId() { return this.id; }
-    public String getFirstName() { return this.firstName; }
-    public String getLastName() { return this.lastName; }
+    public String getUsername() { return this.username; }
+    public String getHashedPassword() { return this.hashedPassword; }
     public Date getCreationDate() { return this.creationDate; }
 }
