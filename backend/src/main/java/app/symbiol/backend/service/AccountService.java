@@ -4,7 +4,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import app.symbiol.backend.exception.AccountAlreadyExistsException;
-import app.symbiol.backend.exception.AccountNotFoundException;
 import app.symbiol.backend.exception.IncorrectPasswordException;
 import app.symbiol.backend.model.Account;
 import app.symbiol.backend.repository.AccountRepository;
