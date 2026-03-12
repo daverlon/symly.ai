@@ -14,9 +14,13 @@ public class AccountService {
 
     private final PasswordEncoder passwordEncoder;
 
+    private final String dummyHash;
+
     public AccountService(AccountRepository accountRepository, PasswordEncoder passwordEncoder) {
         this.accountRepository = accountRepository;
         this.passwordEncoder = passwordEncoder;
+
+        this.dummyHash = passwordEncoder.encode("DUMMYPASSWORDTOCREATEANARTIFICIALDELAYONACCOUNTVALIDATION");
     }
        
     public void createAccount(String username, String password) {
@@ -29,7 +33,10 @@ public class AccountService {
     }
 
     public void validateAccount(String username, String password) {
-        Account account = accountRepository.findByUsername(username).orElseThrow(() -> new IncorrectPasswordException());
+        Account account = accountRepository.findByUsername(username).orElseThrow(() -> {
+            passwordEncoder.matches(password, dummyHash);
+            return new IncorrectPasswordException();
+        });
 
         if (!passwordEncoder.matches(password, account.getHashedPassword())) {
             throw new IncorrectPasswordException();
