@@ -11,8 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<String> handleException() {
-        log.info("Generic exception thrown");
+    public ResponseEntity<String> handleException(Exception ex) {
+        log.info("Generic exception thrown: " + ex.getMessage());
         
         return ResponseEntity
             .status(500)

@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import app.symbiol.backend.dto.AccountDto;
+import app.symbiol.backend.dto.SignupResponseDto;
 import app.symbiol.backend.service.AccountService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -22,10 +23,9 @@ public class AccountController {
     }
 
     @PostMapping
-    public ResponseEntity<String> createaccount(@RequestBody AccountDto dto) {
+    public ResponseEntity<SignupResponseDto> createaccount(@RequestBody AccountDto dto) {
         log.info("Attempt to create account with username " + dto.getUsername());
         accountService.createAccount(dto.getUsername(), dto.getPassword());
-        return ResponseEntity.status(200).body("Account created");
+        return ResponseEntity.ok().body(new SignupResponseDto("Account created."));
     }
-
 }
