@@ -1,18 +1,22 @@
 import { useState } from "react"
 import { loginAccount } from "../api/accountsApi"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 
 export default function Login() {
 
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const navigate = useNavigate()
 
   async function handleLogin(e: React.SubmitEvent) {
     e.preventDefault()
     try {
         const result = await loginAccount(username, password)
         console.log("login result:", result)
-        // alert("Accont created!");
+        localStorage.setItem("jwt", result.token);
+        alert("Login success!");
+        navigate("/dashboard");
+        
     } catch (err) {
         if (err instanceof Error) {
             alert(err.message);

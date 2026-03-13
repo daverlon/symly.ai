@@ -1,6 +1,18 @@
-const API_BASE = "http://localhost:8080/api";
+const API_BASE = "http://localhost:8080";
 
-export async function signupAccount(username: string, password: string): Promise<string> {
+type SignupResponse = {
+    message: string
+}
+
+type LoginResponse = {
+  token: string
+}
+
+type AuthVerificationResponse = {
+    username: string
+}
+
+export async function signupAccount(username: string, password: string): Promise<SignupResponse> {
     const response = await fetch(`${API_BASE}/accounts`, {
         method: 'POST',
         headers: {
@@ -13,10 +25,10 @@ export async function signupAccount(username: string, password: string): Promise
         const errorText = await response.text();
         throw new Error(errorText);
     }
-    return await response.text();
+    return await response.json();
 }
 
-export async function loginAccount(username: string, password: string): Promise<string> {
+export async function loginAccount(username: string, password: string): Promise<LoginResponse> {
     const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: {
@@ -29,5 +41,19 @@ export async function loginAccount(username: string, password: string): Promise<
         const errorText = await response.text();
         throw new Error(errorText);
     }
-    return await response.text();
+    return await response.json();
+}
+
+export async function verifyToken(token: string): Promise<AuthVerificationResponse> {
+    const response = await fetch(`${API_BASE}/auth/verify`, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
+    }
+    return await response.json();
 }

@@ -1,9 +1,10 @@
 import { useState } from "react"
 import { signupAccount } from "../api/accountsApi"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 
 export default function SignUp() {
 
+    const navigate = useNavigate();
     const [username, setUsername] = useState("")
     const [password, setPassword] = useState("")
     const [passwordConfirmation, setPasswordConfirmation] = useState("")
@@ -16,8 +17,9 @@ export default function SignUp() {
         }
         try {
             const result = await signupAccount(username, password)
-            console.log("login result:", result)
-            alert(result);
+            console.log("sign up result:", result)
+            alert(result.message);
+            navigate("/login");
         } catch (err) {
             console.error("signup failed.")
             if (err instanceof Error) {
