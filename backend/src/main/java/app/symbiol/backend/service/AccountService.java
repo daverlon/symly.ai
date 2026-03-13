@@ -7,7 +7,9 @@ import app.symbiol.backend.exception.AccountAlreadyExistsException;
 import app.symbiol.backend.exception.IncorrectPasswordException;
 import app.symbiol.backend.model.Account;
 import app.symbiol.backend.repository.AccountRepository;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 public class AccountService {
     public final AccountRepository accountRepository;
@@ -25,6 +27,7 @@ public class AccountService {
        
     public void createAccount(String username, String password) {
         if (accountRepository.existsByUsername(username)) {
+            log.info("Attempt to create new account with username: " + username);
             throw new AccountAlreadyExistsException(username);
         }
         String hashedPassword = passwordEncoder.encode(password);
@@ -32,7 +35,7 @@ public class AccountService {
         accountRepository.save(new Account(username, hashedPassword));
     }
 
-    public void validateAccount(String username, String password) {
+    public void authenticateAccount(String username, String password) {
         Account account = accountRepository.findByUsername(username).orElseThrow(() -> {
             passwordEncoder.matches(password, dummyHash);
             return new IncorrectPasswordException();

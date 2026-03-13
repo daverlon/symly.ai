@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 import app.symbiol.backend.model.Greeting;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/")
 public class GreetingController {
 
     private static final String template = "Hello, %s!";

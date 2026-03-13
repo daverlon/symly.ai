@@ -21,7 +21,7 @@ public class WebSecurityConfig {
             .cors(cors -> {})
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**", "/api/accounts").permitAll()
+                .requestMatchers("/auth/**", "/accounts").permitAll()
                 .anyRequest().authenticated()
             );
 
@@ -33,7 +33,7 @@ public class WebSecurityConfig {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
-                registry.addMapping("/api/**")
+                registry.addMapping("/**")
                 .allowedOriginPatterns("http://localhost:5173")
                 .allowedMethods("*")
                 .allowedHeaders("*");
