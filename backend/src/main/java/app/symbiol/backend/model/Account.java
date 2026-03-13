@@ -20,9 +20,9 @@ public class Account {
 
     protected Account() {};
 
-    public Account(String firstName, String hashedPassword) {
+    public Account(String username, String hashedPassword) {
         this.creationDate = new Date(System.currentTimeMillis());
-        this.username = firstName;
+        this.username = username;
         this.hashedPassword = hashedPassword;
     }
 
