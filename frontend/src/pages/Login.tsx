@@ -14,7 +14,7 @@ export default function Login() {
         const result = await loginAccount(username, password)
         console.log("login result:", result)
         localStorage.setItem("jwt", result.token);
-        alert("Login success!");
+        // alert("Login success!");
         navigate("/dashboard");
         
     } catch (err) {

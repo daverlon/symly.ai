@@ -22,6 +22,7 @@ public class WebSecurityConfig {
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/auth/**", "/accounts").permitAll()
+                .requestMatchers("/sessions/**", "/uploadSession/**").permitAll()
                 .anyRequest().authenticated()
             );
 

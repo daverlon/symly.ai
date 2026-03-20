@@ -1,12 +1,20 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { verifyToken } from "../api/accountsApi"
+import { createPhoneToken, createSession, deleteAllSessions, deleteSession, listSessions, type SessionId } from "../api/sessionsApi"
+import { QRCodeSVG } from "qrcode.react"
+import { Menu, Plus, X } from "lucide-react"
 
 export default function Dashboard() {
 
     const navigate = useNavigate();
-    const [username, setUsername] = useState<string | null>(null);
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const [loading, setLoading] = useState(true);
+    const [sessions, setSessions] = useState<SessionId[]>([]);
+    const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
+    const [qrOpen, setQrOpen] = useState(false);
+    const [phoneToken, setPhoneToken] = useState<string | null>(null);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
 
     async function checkToken() {
         const token = localStorage.getItem("jwt");
@@ -17,8 +25,8 @@ export default function Dashboard() {
         }
 
         try {
-            const result = await verifyToken(token);
-            setUsername(result.username);
+            // const result = await verifyToken(token);
+            await verifyToken(token);
         } catch (err) {
             console.error("Token verification failed.");
             localStorage.removeItem("jwt");
@@ -33,22 +41,312 @@ export default function Dashboard() {
         navigate("/login");
     }
 
+    const mobileUploadUrl = useMemo(() => {
+        if (!phoneToken) return "";
+        return `${window.location.origin}/uploadSession?id=${encodeURIComponent(phoneToken)}`;
+    }, [phoneToken]);
+
+    async function handleCreateSession() {
+        try {
+            const created = await createSession();
+            setSessions((prev) => [...prev, created]);
+            setActiveSessionId(created.id);
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : "Failed to create session.";
+            alert(msg);
+        }
+    }
+
+    async function handleConnectPhone() {
+        if (activeSessionId == null) return;
+
+        try {
+            const res = await createPhoneToken(activeSessionId);
+            setPhoneToken(res.token);
+            setQrOpen(true);
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : "Failed to connect phone.";
+            alert(msg);
+        }
+    }
+
+    async function handleDeleteSession(sessionId: number) {
+        const ok = window.confirm(`Delete session ${sessionId}?`);
+        if (!ok) return;
+
+        try {
+            await deleteSession(sessionId);
+
+            setSessions((prev) => {
+                const remaining = prev.filter((s) => s.id !== sessionId);
+                setActiveSessionId((prevActive) =>
+                    prevActive === sessionId ? remaining[0]?.id ?? null : prevActive
+                );
+                if (activeSessionId === sessionId) {
+                    setQrOpen(false);
+                    setPhoneToken(null);
+                }
+                return remaining;
+            });
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : "Failed to delete session.";
+            alert(msg);
+        }
+    }
+
+    async function handleDeleteAllSessions() {
+        if (!sessions.length) return;
+
+        const ok = window.confirm(`Delete all ${sessions.length} sessions?`);
+        if (!ok) return;
+
+        try {
+            await deleteAllSessions();
+            setSessions([]);
+            setActiveSessionId(null);
+            setQrOpen(false);
+            setPhoneToken(null);
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : "Failed to delete sessions.";
+            alert(msg);
+        }
+    }
+
     useEffect(() => {
         checkToken();
     }, []);
+
+    useEffect(() => {
+        if (loading) return;
+
+        listSessions()
+            .then((res) => {
+                setSessions(res);
+                setActiveSessionId(res[0]?.id ?? null);
+            })
+            .catch((e) => {
+                const msg = e instanceof Error ? e.message : "Failed to load sessions.";
+                alert(msg);
+            });
+    }, [loading]);
+
+    useEffect(() => {
+        if (loading) return;
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        const dpr = Math.max(1, window.devicePixelRatio || 1);
+
+        const draw = () => {
+            const rect = canvas.getBoundingClientRect();
+            const width = Math.max(1, Math.floor(rect.width));
+            const height = Math.max(1, Math.floor(rect.height));
+
+            canvas.width = Math.floor(width * dpr);
+            canvas.height = Math.floor(height * dpr);
+
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, width, height);
+
+            // Light grid (canvas "dashboard" feel, no widgets yet).
+            const spacing = 40;
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = "rgba(148, 163, 184, 0.22)"; // slate-400-ish
+
+            const maxX = width;
+            const maxY = height;
+
+            for (let x = 0; x <= maxX; x += spacing) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, maxY);
+                ctx.stroke();
+            }
+
+            for (let y = 0; y <= maxY; y += spacing) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(maxX, y);
+                ctx.stroke();
+            }
+
+            // Subtle center glow to make the empty dashboard feel "alive".
+            const gradient = ctx.createRadialGradient(
+                width * 0.55,
+                height * 0.35,
+                0,
+                width * 0.55,
+                height * 0.35,
+                Math.max(width, height)
+            );
+            gradient.addColorStop(0, "rgba(59, 130, 246, 0.06)"); // blue-500 @ low alpha
+            gradient.addColorStop(1, "rgba(59, 130, 246, 0.00)");
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, width, height);
+        };
+
+        draw();
+
+        let raf = 0;
+        const onResize = () => {
+            cancelAnimationFrame(raf);
+            raf = requestAnimationFrame(draw);
+        };
+
+        window.addEventListener("resize", onResize);
+        return () => {
+            cancelAnimationFrame(raf);
+            window.removeEventListener("resize", onResize);
+        };
+    }, [loading]);
 
     if (loading) {
         return <div>Loading...</div>;
     }
 
     return (
-        <div>
-            <h1>Symbiol dashboard</h1>
-            <div className="w-80">
-                <button onClick={handleSignOut} className="bg-blue-300 rounded-sm px-5 text-center self-start">Sign out</button>
-            </div>
-            <br />
-            <h1>Welcome {username}</h1>
+        <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
+            <header className="h-14 flex items-center justify-between px-6 border-b border-slate-200 bg-white/70">
+                <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={() => setSidebarOpen((v) => !v)}
+                        className="w-9 h-9 rounded-md flex items-center justify-center hover:bg-slate-200"
+                        aria-label="Open sessions sidebar"
+                    >
+                        <Menu size={18} className="text-slate-700" />
+                    </button>
+                    <div className="text-sm text-slate-600">symly.ai</div>
+                </div>
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={handleConnectPhone}
+                        disabled={activeSessionId == null}
+                        className="bg-slate-200 rounded-sm px-5 py-1.5 text-center self-start text-slate-900 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Connect phone
+                    </button>
+                    <button
+                        onClick={handleSignOut}
+                        className="bg-blue-300 rounded-sm px-5 py-1.5 text-center self-start"
+                    >
+                        Sign out
+                    </button>
+                </div>
+            </header>
+
+            {sidebarOpen && (
+                <div
+                    className="fixed inset-0 z-30 bg-slate-900/20"
+                    onClick={() => setSidebarOpen(false)}
+                />
+            )}
+
+            <aside
+                className={`fixed left-0 top-14 z-40 w-72 h-[calc(100vh-3.5rem)] bg-white/95 backdrop-blur border-r border-slate-200 transition-transform duration-200 ${
+                    sidebarOpen ? "translate-x-0" : "-translate-x-full"
+                }`}
+                aria-label="Sessions sidebar"
+            >
+                <div className="h-full flex flex-col">
+                    <div className="p-4 border-b border-slate-200">
+                        <button
+                            onClick={handleCreateSession}
+                            className="w-full rounded-lg bg-blue-600 text-white px-4 py-2 text-sm font-medium hover:bg-blue-500 flex items-center gap-2 justify-center"
+                        >
+                            <Plus size={16} />
+                            New session
+                        </button>
+                    </div>
+
+                    <div className="p-2 flex-1 overflow-y-auto">
+                        {sessions.map((s) => (
+                            <div
+                                key={s.id}
+                                className={`group flex items-center justify-between rounded-lg px-2 py-1.5 cursor-pointer ${
+                                    activeSessionId === s.id
+                                        ? "bg-blue-50 text-blue-700"
+                                        : "text-slate-700 hover:bg-slate-50"
+                                }`}
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() => {setActiveSessionId(s.id); setSidebarOpen(false)}}
+                                    className="flex-1 text-left"
+                                >
+                                    Session {s.id}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleDeleteSession(s.id);
+                                    }}
+                                    className="ml-2 px-2 py-1 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity hover:text-slate-700"
+                                    aria-label={`Delete session ${s.id}`}
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="p-2 border-t border-slate-200">
+                        <button
+                            onClick={handleDeleteAllSessions}
+                            disabled={!sessions.length}
+                            className="w-full rounded-lg bg-gray-600 text-white px-4 py-2 text-sm font-medium hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Delete all sessions
+                        </button>
+                    </div>
+                </div>
+            </aside>
+
+            <main className="relative flex-1 overflow-hidden">
+                <canvas
+                    ref={canvasRef}
+                    className="absolute inset-0 w-full h-full pointer-events-none"
+                />
+            </main>
+
+            {qrOpen && phoneToken && (
+                <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-6">
+                    <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white/90 backdrop-blur p-5 shadow-lg">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <div className="text-sm font-semibold text-slate-900">Connect phone</div>
+                                <div className="text-xs text-slate-600">Scan to open the upload page</div>
+                            </div>
+                            <button
+                                onClick={() => setQrOpen(false)}
+                                className="rounded-lg px-2 py-1 text-sm text-slate-600 hover:bg-slate-100"
+                            >
+                                Close
+                            </button>
+                        </div>
+
+                        <div className="mt-5 flex items-center justify-center">
+                            <QRCodeSVG value={mobileUploadUrl} size={190} />
+                        </div>
+
+                        <a
+                            href={mobileUploadUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-4 block text-center text-sm text-blue-700 underline break-all"
+                        >
+                            {mobileUploadUrl}
+                        </a>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
