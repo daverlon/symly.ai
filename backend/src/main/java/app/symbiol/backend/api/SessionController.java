@@ -1,5 +1,7 @@
 package app.symbiol.backend.api;
 
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -14,8 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import app.symbiol.backend.dto.PhoneTokenDto;
 import app.symbiol.backend.dto.SessionIdDto;
+import app.symbiol.backend.dto.UploadSessionJwtDto;
+import app.symbiol.backend.dto.UploadSessionKeyDto;
 import app.symbiol.backend.dto.UploadSessionValidateDto;
 import app.symbiol.backend.model.Session;
+import app.symbiol.backend.model.UploadSessionKey;
 import app.symbiol.backend.security.JwtService;
 import app.symbiol.backend.service.SessionService;
 import io.jsonwebtoken.JwtException;
@@ -73,8 +78,8 @@ public class SessionController {
         }
     }
 
-    @PostMapping("/sessions/{sessionId}/phoneToken")
-    public ResponseEntity<PhoneTokenDto> createPhoneToken(
+    @PostMapping("/sessions/{sessionId}/uploadSessionKey")
+    public ResponseEntity<UploadSessionKeyDto> createUploadSessionKey(
         @PathVariable Long sessionId,
         @RequestHeader("Authorization") String authHeader
     ) {
@@ -83,28 +88,34 @@ public class SessionController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        try {
-            String username = jwtService.validateTokenAndGetUsername(token);
-            if (sessionService.findSessionForUsername(sessionId, username).isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-            }
-
-            String uploadSessionToken = jwtService.generateUploadSessionToken(sessionId);
-            // Frontend will build the absolute URL for QR; this is a relative hint.
-            String uploadUrl = "/uploadSession?id=" + uploadSessionToken;
-            return ResponseEntity.ok(new PhoneTokenDto(uploadSessionToken, uploadUrl));
-        } catch (JwtException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
+        UploadSessionKeyDto key = sessionService.createUploadSessionKey(sessionId);
+        return ResponseEntity.ok(key);
     }
 
-    @GetMapping("/uploadSession/validate")
+    @GetMapping("/uploadSessionKey/validate")
     public ResponseEntity<UploadSessionValidateDto> validateUploadSessionToken(
         @RequestParam("id") String uploadSessionToken
     ) {
         try {
             Long sessionId = jwtService.validateUploadSessionTokenAndGetSessionId(uploadSessionToken);
             return ResponseEntity.ok(new UploadSessionValidateDto(sessionId));
+        } catch (JwtException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+    }
+
+    @GetMapping("/uploadSessionKey/validate")
+    public ResponseEntity<UploadSessionJwtDto> exchangeUploadSessionKey(
+        @RequestParam("key") String uploadSessionKey
+    ) {
+        try {
+
+            sessionService.isUploadSessionKeyValid(uploadSessionKey);
+            // throw exception if not valid
+            Long sId = sessionService.findSessionForUploadSessionKey(uploadSessionKey).getId();
+            String jwt = jwtService.generateUploadSessionToken(sId);
+            return ResponseEntity.ok().body(new UploadSessionJwtDto(jwt));
+
         } catch (JwtException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
