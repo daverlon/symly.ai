@@ -89,18 +89,6 @@ public class SessionController {
     }
 
     @GetMapping("/uploadSessionKey/validate")
-    public ResponseEntity<UploadSessionValidateDto> validateUploadSessionToken(
-        @RequestParam("id") String uploadSessionToken
-    ) {
-        try {
-            Long sessionId = jwtService.validateUploadSessionTokenAndGetSessionId(uploadSessionToken);
-            return ResponseEntity.ok(new UploadSessionValidateDto(sessionId));
-        } catch (JwtException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-    }
-
-    @GetMapping("/uploadSessionKey/validate")
     public ResponseEntity<UploadSessionJwtDto> exchangeUploadSessionKey(
         @RequestParam("key") String uploadSessionKey
     ) {
