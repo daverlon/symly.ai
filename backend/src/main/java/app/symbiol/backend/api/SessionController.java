@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.RestController;
 import app.symbiol.backend.dto.SessionIdDto;
 import app.symbiol.backend.dto.UploadSessionJwtDto;
 import app.symbiol.backend.dto.UploadSessionKeyDto;
-import app.symbiol.backend.dto.UploadSessionValidateDto;
 import app.symbiol.backend.model.Session;
 import app.symbiol.backend.security.JwtService;
 import app.symbiol.backend.service.SessionService;
