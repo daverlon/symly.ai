@@ -9,6 +9,7 @@ export default function Dashboard() {
 
     const navigate = useNavigate();
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const [username, setUsername] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [sessions, setSessions] = useState<SessionId[]>([]);
     const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
@@ -25,8 +26,8 @@ export default function Dashboard() {
         }
 
         try {
-            // const result = await verifyToken(token);
-            await verifyToken(token);
+            const result = await verifyToken(token);
+            setUsername(result.username);
         } catch (err) {
             console.error("Token verification failed.");
             localStorage.removeItem("jwt");
@@ -220,9 +221,10 @@ export default function Dashboard() {
                     >
                         <Menu size={18} className="text-slate-700" />
                     </button>
-                    <div className="text-sm text-slate-600">symly.ai</div>
+                    <div className="text-sm text-slate-600">Symbiol</div>
                 </div>
                 <div className="flex items-center gap-4">
+                    <div className="text-xs text-slate-500">Welcome {username}</div>
                     <button
                         onClick={handleConnectPhone}
                         disabled={activeSessionId == null}
@@ -275,7 +277,7 @@ export default function Dashboard() {
                             >
                                 <button
                                     type="button"
-                                    onClick={() => {setActiveSessionId(s.id); setSidebarOpen(false)}}
+                                    onClick={() => setActiveSessionId(s.id)}
                                     className="flex-1 text-left"
                                 >
                                     Session {s.id}
@@ -301,7 +303,7 @@ export default function Dashboard() {
                         <button
                             onClick={handleDeleteAllSessions}
                             disabled={!sessions.length}
-                            className="w-full rounded-lg bg-gray-600 text-white px-4 py-2 text-sm font-medium hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full rounded-lg bg-red-600 text-white px-4 py-2 text-sm font-medium hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             Delete all sessions
                         </button>
