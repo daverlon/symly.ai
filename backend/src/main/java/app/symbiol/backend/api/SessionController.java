@@ -73,7 +73,7 @@ public class SessionController {
         }
     }
 
-    @PostMapping("/sessions/{sessionId}/uploadSessionKey")
+    @PostMapping("/sessions/{sessionId}/uploadSession")
     public ResponseEntity<UploadSessionKeyDto> createUploadSessionKey(
         @PathVariable Long sessionId,
         @RequestHeader("Authorization") String authHeader
@@ -87,7 +87,7 @@ public class SessionController {
         return ResponseEntity.ok(key);
     }
 
-    @GetMapping("/uploadSessionKey/validate")
+    @GetMapping("/uploadSession/validate")
     public ResponseEntity<UploadSessionJwtDto> exchangeUploadSessionKey(
         @RequestParam("key") String uploadSessionKey
     ) {
@@ -97,7 +97,7 @@ public class SessionController {
             // throw exception if not valid
             Long sId = sessionService.findSessionForUploadSessionKey(uploadSessionKey).getId();
             String jwt = jwtService.generateUploadSessionToken(sId);
-            return ResponseEntity.ok().body(new UploadSessionJwtDto(jwt));
+            return ResponseEntity.ok().body(new UploadSessionJwtDto(jwt, sId));
 
         } catch (JwtException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -120,6 +120,7 @@ public class SessionController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
 
+            sessionService.deleteUploadKey(sessionId);
             sessionService.deleteSessionForUsername(sessionId, username);
             return ResponseEntity.noContent().build();
         } catch (JwtException e) {

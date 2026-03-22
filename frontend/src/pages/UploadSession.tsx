@@ -7,7 +7,7 @@ const LOCAL_SESSION_ID_KEY = "mobileUploadSessionSessionId";
 
 export default function UploadSession() {
     const [searchParams] = useSearchParams();
-    const token = useMemo(() => searchParams.get("id") ?? "", [searchParams]);
+    const token = useMemo(() => searchParams.get("key") ?? "", [searchParams]);
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -33,7 +33,7 @@ export default function UploadSession() {
         validateUploadToken(token)
             .then((res) => {
                 setSessionId(res.sessionId);
-                localStorage.setItem(LOCAL_TOKEN_KEY, token);
+                localStorage.setItem(LOCAL_TOKEN_KEY, res.token);
                 localStorage.setItem(LOCAL_SESSION_ID_KEY, String(res.sessionId));
                 setLoading(false);
             })

@@ -11,4 +11,6 @@ import app.symbiol.backend.model.UploadSessionKey;
 public interface UploadKeyRepository extends JpaRepository<UploadSessionKey, Long> {
 
     public Optional<UploadSessionKey> findByKey(String key);
+
+    public void deleteBySessionId(Long sessionId);
 }

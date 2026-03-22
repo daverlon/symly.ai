@@ -18,8 +18,10 @@ import app.symbiol.backend.model.UploadSessionKey;
 import app.symbiol.backend.repository.AccountRepository;
 import app.symbiol.backend.repository.SessionRepository;
 import app.symbiol.backend.repository.UploadKeyRepository;
+import jakarta.transaction.Transactional;
 
 @Service
+@Transactional
 public class SessionService {
 
     private final AccountRepository accountRepository;
@@ -68,6 +70,10 @@ public class SessionService {
 
     public void deleteAllSessionsForUsername(String username) {
         List<Session> sessions = listSessionsForUsername(username);
+        for (int i = 0; i < sessions.size(); i++) {
+            Long id = sessions.get(i).getId();
+            uploadKeyRepository.deleteBySessionId(id);
+        }
         sessionRepository.deleteAll(sessions);
     }
 
@@ -90,6 +96,10 @@ public class SessionService {
         uploadKeyRepository.save(uploadSessionKey);
 
         return key;
+    }
+
+    public void deleteUploadKey(Long sessionId) {
+        uploadKeyRepository.deleteBySessionId(sessionId);
     }
 
     public boolean isUploadSessionKeyValid(String uploadSessionKey) {
