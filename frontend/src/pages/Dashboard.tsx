@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { verifyToken } from "../api/accountsApi"
-import { createPhoneToken, createSession, deleteAllSessions, deleteSession, listSessions, type SessionId } from "../api/sessionsApi"
+import { createUploadSessionKey, createSession, deleteAllSessions, deleteSession, listSessions, type SessionId } from "../api/sessionsApi"
 import { QRCodeSVG } from "qrcode.react"
 import { Menu, Plus, X } from "lucide-react"
 
@@ -62,7 +62,7 @@ export default function Dashboard() {
         if (activeSessionId == null) return;
 
         try {
-            const res = await createPhoneToken(activeSessionId);
+            const res = await createUploadSessionKey(activeSessionId);
             setPhoneToken(res.token);
             setQrOpen(true);
         } catch (e) {
