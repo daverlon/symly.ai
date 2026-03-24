@@ -44,7 +44,7 @@ export default function Dashboard() {
 
     const mobileUploadUrl = useMemo(() => {
         if (!phoneToken) return "";
-        return `${window.location.origin}/uploadSession?id=${encodeURIComponent(phoneToken)}`;
+        return `${window.location.origin}/uploadSession?key=${encodeURIComponent(phoneToken)}`;
     }, [phoneToken]);
 
     async function handleCreateSession() {
@@ -63,7 +63,7 @@ export default function Dashboard() {
 
         try {
             const res = await createUploadSessionKey(activeSessionId);
-            setPhoneToken(res.token);
+            setPhoneToken(res.key);
             setQrOpen(true);
         } catch (e) {
             const msg = e instanceof Error ? e.message : "Failed to connect phone.";

@@ -4,16 +4,16 @@ export type SessionId = {
     id: number;
 };
 
-export type PhoneTokenResponse = {
-    token: string;
+export type UploadSessionKeyResponse = {
+    key: string;
     uploadUrl: string;
 };
 
 // for key -> jwt exchange
 // see UploadSessionJwtDto
 export type UploadSessionValidateResponse = {
+    uploadSessionJwt: string;
     sessionId: number;
-    token: string;
 };
 
 function requireJwt() {
@@ -58,7 +58,7 @@ export async function createSession(): Promise<SessionId> {
     return response.json();
 }
 
-export async function createUploadSessionKey(sessionId: number): Promise<PhoneTokenResponse> {
+export async function createUploadSessionKey(sessionId: number): Promise<UploadSessionKeyResponse> {
     const jwt = requireJwt();
 
     const response = await fetch(`${API_BASE}/sessions/${sessionId}/uploadSession`, {
@@ -75,8 +75,9 @@ export async function createUploadSessionKey(sessionId: number): Promise<PhoneTo
     return response.json();
 }
 
-export async function validateUploadToken(token: string): Promise<UploadSessionValidateResponse> {
-    const response = await fetch(`${API_BASE}/uploadSession/validate?id=${encodeURIComponent(token)}`, {
+export async function validateUploadSessionKey(token: string): Promise<UploadSessionValidateResponse> {
+
+    const response = await fetch(`${API_BASE}/uploadSession/validate?key=${encodeURIComponent(token)}`, {
         method: "GET",
     });
 

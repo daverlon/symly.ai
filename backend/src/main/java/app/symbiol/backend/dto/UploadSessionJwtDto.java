@@ -2,14 +2,14 @@ package app.symbiol.backend.dto;
 
 public class UploadSessionJwtDto {
 
-    private String token;
+    private String uploadSessionJwt;
     private Long sessionId;
 
-    public UploadSessionJwtDto(String token, Long sessionId) {
-        this.token = token;
+    public UploadSessionJwtDto(String uploadSessionJwt, Long sessionId) {
+        this.uploadSessionJwt = uploadSessionJwt;
         this.sessionId = sessionId;
     }
     
-    public String getToken() { return this.token; }
+    public String getUploadSessionJwt() { return this.uploadSessionJwt; }
     public Long getSessionId() { return this.sessionId; }
 }

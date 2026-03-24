@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import app.symbiol.backend.dto.SessionIdDto;
 import app.symbiol.backend.dto.UploadSessionJwtDto;
 import app.symbiol.backend.dto.UploadSessionKeyDto;
+import app.symbiol.backend.dto.UploadSessionValidateDto;
 import app.symbiol.backend.model.Session;
 import app.symbiol.backend.security.JwtService;
 import app.symbiol.backend.service.SessionService;
@@ -85,6 +86,25 @@ public class SessionController {
 
         UploadSessionKeyDto key = sessionService.createUploadSessionKey(sessionId);
         return ResponseEntity.ok(key);
+    }
+
+    @GetMapping("/sessions/{sessionId}/uploadSession")
+    public ResponseEntity<UploadSessionValidateDto> ValidateUploadSessionJwt(
+        @PathVariable Long sessionId,
+        @RequestHeader("Authorization") String authHeader
+    ) {
+         String token = extractBearerToken(authHeader);
+        if (token == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        try {
+
+            UploadSessionValidateDto sId = new UploadSessionValidateDto(jwtService.validateUploadSessionTokenAndGetSessionId(token));
+            return ResponseEntity.ok(sId);
+        } catch (JwtException ex) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
     }
 
     @GetMapping("/uploadSession/validate")

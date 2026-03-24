@@ -1,48 +1,44 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { validateUploadToken } from "../api/sessionsApi";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { validateUploadSessionKey } from "../api/sessionsApi";
+import { Navigation } from "lucide-react";
 
-const LOCAL_TOKEN_KEY = "mobileUploadSessionToken";
+const LOCAL_TOKEN_KEY = "uploadSessionJwt";
 const LOCAL_SESSION_ID_KEY = "mobileUploadSessionSessionId";
 
 export default function UploadSession() {
     const [searchParams] = useSearchParams();
-    const token = useMemo(() => searchParams.get("key") ?? "", [searchParams]);
+    const key = useMemo(() => searchParams.get("key") ?? "", [searchParams]);
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [sessionId, setSessionId] = useState<number | null>(null);
 
+    const navigate = useNavigate();
+
     useEffect(() => {
         const cachedToken = localStorage.getItem(LOCAL_TOKEN_KEY);
         const cachedSessionId = localStorage.getItem(LOCAL_SESSION_ID_KEY);
 
-        // MVP semantics: validate once, then trust cached state while token remains in browser storage.
-        if (token && cachedToken && cachedSessionId && token === cachedToken) {
-            setSessionId(Number(cachedSessionId));
-            setLoading(false);
-            return;
-        }
+        // if no key, use the jwt
+        // if (!key) {
+        //     navigate(`/sessions/${sessionId}/uploadSession`);
+        // }
 
-        if (!token) {
-            setError("Missing session token.");
-            setLoading(false);
-            return;
-        }
-
-        validateUploadToken(token)
+        validateUploadSessionKey(key)
             .then((res) => {
                 setSessionId(res.sessionId);
-                localStorage.setItem(LOCAL_TOKEN_KEY, res.token);
+                localStorage.setItem(LOCAL_TOKEN_KEY, res.uploadSessionJwt);
                 localStorage.setItem(LOCAL_SESSION_ID_KEY, String(res.sessionId));
                 setLoading(false);
+                navigate(`/sessions/${cachedSessionId}/uploadSession`);
             })
             .catch((e) => {
                 const msg = e instanceof Error ? e.message : "Failed to connect session.";
                 setError(msg);
                 setLoading(false);
             });
-    }, [token]);
+    }, [key]);
 
     if (loading) {
         return (

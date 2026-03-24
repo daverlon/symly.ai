@@ -86,7 +86,7 @@ public class SessionService {
         byte[] bytes = new byte[16];
         random.nextBytes(bytes);
         String uploadKey = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        UploadSessionKeyDto key = new UploadSessionKeyDto(uploadKey, "/uploadSession?id=" + uploadKey);
+        UploadSessionKeyDto key = new UploadSessionKeyDto(uploadKey, "/uploadSession?key=" + uploadKey);
 
         UploadSessionKey uploadSessionKey = new UploadSessionKey(
             correspondingSession, 
