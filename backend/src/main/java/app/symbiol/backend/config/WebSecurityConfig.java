@@ -23,6 +23,7 @@ public class WebSecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/auth/**", "/accounts").permitAll()
                 .requestMatchers("/sessions/**", "/uploadSession/**").permitAll()
+                .requestMatchers("/u/**").permitAll()
                 .anyRequest().authenticated()
             );
 

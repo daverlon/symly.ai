@@ -12,6 +12,12 @@ type AuthVerificationResponse = {
     username: string
 }
 
+type UploadSessionDto = {
+    publicId: string,
+    expiry: string,
+    username: string
+}
+
 export async function signupAccount(username: string, password: string): Promise<SignupResponse> {
     const response = await fetch(`${API_BASE}/accounts`, {
         method: 'POST',
@@ -51,6 +57,19 @@ export async function verifyToken(token: string): Promise<AuthVerificationRespon
             'Authorization': `Bearer ${token}`
         }
     });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
+    }
+    return await response.json();
+}
+
+export async function getUploadSessionData(urlKey: string): Promise<UploadSessionDto> {
+    
+    const response = await fetch(`${API_BASE}/u/${urlKey}`, {
+        method: 'GET',
+    });
+
     if (!response.ok) {
         const errorText = await response.text();
         throw new Error(errorText);

@@ -6,6 +6,7 @@ import SignUp from './pages/SignUp'
 import Dashboard from './pages/Dashboard'
 import UploadSession from './pages/UploadSession'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import InvalidRoute from './pages/InvalidRoute'
 
 function App() {
   return (
@@ -18,7 +19,10 @@ function App() {
       <Route path="/signup" element = {<SignUp />} />
       <Route path="/dashboard" element = {<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/dashboard/session/:sessionId" element = {<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-      <Route path="/uploadSession" element = {<UploadSession />} />
+      <Route path="/u/:uploadKey" element = {<UploadSession />} />
+
+      <Route path="*" element={<InvalidRoute />} />
+
     </Routes>
     </BrowserRouter>
 
