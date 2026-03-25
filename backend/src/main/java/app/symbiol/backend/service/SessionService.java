@@ -28,7 +28,7 @@ public class SessionService {
     private final SessionRepository sessionRepository;
     private final UploadKeyRepository uploadKeyRepository;
 
-    private final SecureRandom random;
+    private final SecureRandom random = new SecureRandom();
 
     public SessionService(
 
@@ -39,8 +39,6 @@ public class SessionService {
         this.accountRepository = accountRepository;
         this.sessionRepository = sessionRepository;
         this.uploadKeyRepository = uploadKeyRepository;
-
-        this.random = new SecureRandom();
     }
 
     public Session createSessionForUsername(String username) {
@@ -77,21 +75,23 @@ public class SessionService {
         sessionRepository.deleteAll(sessions);
     }
 
-    public UploadSessionKeyDto createUploadSessionKey(Long sessionId) {
+    public UploadSessionKeyDto createUploadSessionKey(String publicId) {
 
-        Session correspondingSession = sessionRepository.findById(sessionId)
-            .orElseThrow(() -> new SessionNotFoundException(sessionId));
+        // create the upload session key in the DB, it lasts 1 hour
+
+        Session correspondingSession = sessionRepository.findByPublicId(publicId)
+            .orElseThrow(() -> new SessionNotFoundException(publicId));
 
 
         byte[] bytes = new byte[16];
         random.nextBytes(bytes);
         String uploadKey = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        UploadSessionKeyDto key = new UploadSessionKeyDto(uploadKey, "/uploadSession?key=" + uploadKey);
+        UploadSessionKeyDto key = new UploadSessionKeyDto(uploadKey, "/u/" + uploadKey);
 
         UploadSessionKey uploadSessionKey = new UploadSessionKey(
             correspondingSession, 
             uploadKey,
-            Instant.now().plusSeconds(360));
+            Instant.now().plusSeconds(3600)); // 1 hour session
 
         uploadKeyRepository.save(uploadSessionKey);
 
@@ -115,6 +115,11 @@ public class SessionService {
         UploadSessionKey k = uploadKeyRepository.findByKey(uploadSessionKey)
             .orElseThrow(() -> new InvalidUploadSessionKeyException(uploadSessionKey));
         return k.getSession();
+    }
+
+    public UploadSessionKey findUploadSessionKey(String uploadKey) {
+        return uploadKeyRepository.findByKey(uploadKey)
+            .orElseThrow(() -> new InvalidUploadSessionKeyException(uploadKey));
     }
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { validateUploadSessionKey } from "../api/sessionsApi";
+import {  } from "../api/sessionsApi";
 import { Navigation } from "lucide-react";
 
 const LOCAL_TOKEN_KEY = "uploadSessionJwt";
@@ -39,6 +39,10 @@ export default function UploadSession() {
                 setLoading(false);
             });
     }, [key]);
+
+    useEffect(() => {
+
+    });
 
     if (loading) {
         return (

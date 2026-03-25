@@ -1,7 +1,7 @@
 const API_BASE = "http://localhost:8080";
 
 export type SessionId = {
-    id: number;
+    id: string;
 };
 
 export type UploadSessionKeyResponse = {
@@ -58,10 +58,10 @@ export async function createSession(): Promise<SessionId> {
     return response.json();
 }
 
-export async function createUploadSessionKey(sessionId: number): Promise<UploadSessionKeyResponse> {
+export async function createUploadSessionKey(sessionId: string): Promise<UploadSessionKeyResponse> {
     const jwt = requireJwt();
 
-    const response = await fetch(`${API_BASE}/sessions/${sessionId}/uploadSession`, {
+    const response = await fetch(`${API_BASE}/sessions/${sessionId}/uploadKey`, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${jwt}`,
@@ -75,20 +75,7 @@ export async function createUploadSessionKey(sessionId: number): Promise<UploadS
     return response.json();
 }
 
-export async function validateUploadSessionKey(token: string): Promise<UploadSessionValidateResponse> {
-
-    const response = await fetch(`${API_BASE}/uploadSession/validate?key=${encodeURIComponent(token)}`, {
-        method: "GET",
-    });
-
-    if (!response.ok) {
-        throw new Error(await response.text());
-    }
-
-    return response.json();
-}
-
-export async function deleteSession(sessionId: number): Promise<void> {
+export async function deleteSession(sessionId: string): Promise<void> {
     const jwt = requireJwt();
 
     const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {

@@ -2,14 +2,14 @@ package app.symbiol.backend.dto;
 
 public class SessionIdDto {
 
-    private Long id;
+    private String publicId;
 
-    public SessionIdDto(Long id) {
-        this.id = id;
+    public SessionIdDto(String publicId) {
+        this.publicId = publicId;
     }
 
-    public Long getId() {
-        return id;
+    public String getId() {
+        return publicId;
     }
 }
 

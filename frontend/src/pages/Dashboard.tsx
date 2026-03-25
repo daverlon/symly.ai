@@ -12,7 +12,7 @@ export default function Dashboard() {
     const [username, setUsername] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [sessions, setSessions] = useState<SessionId[]>([]);
-    const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
+    const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
     const [qrOpen, setQrOpen] = useState(false);
     const [phoneToken, setPhoneToken] = useState<string | null>(null);
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -44,7 +44,7 @@ export default function Dashboard() {
 
     const mobileUploadUrl = useMemo(() => {
         if (!phoneToken) return "";
-        return `${window.location.origin}/uploadSession?key=${encodeURIComponent(phoneToken)}`;
+        return `${window.location.origin}/u/${encodeURIComponent(phoneToken)}`;
     }, [phoneToken]);
 
     async function handleCreateSession() {
@@ -71,7 +71,7 @@ export default function Dashboard() {
         }
     }
 
-    async function handleDeleteSession(sessionId: number) {
+    async function handleDeleteSession(sessionId: string) {
         const ok = window.confirm(`Delete session ${sessionId}?`);
         if (!ok) return;
 
@@ -277,10 +277,14 @@ export default function Dashboard() {
                             >
                                 <button
                                     type="button"
-                                    onClick={() => setActiveSessionId(s.id)}
+                                    onClick={() => { 
+                                        setActiveSessionId(s.id);
+                                        setSidebarOpen(false);
+                                        navigate(`/dashboard/session/${s.id}`)
+                                    } }
                                     className="flex-1 text-left"
                                 >
-                                    Session {s.id}
+                                    {s.id}
                                 </button>
 
                                 <button
