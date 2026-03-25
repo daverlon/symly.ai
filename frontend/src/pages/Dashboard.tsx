@@ -221,7 +221,7 @@ export default function Dashboard() {
                     >
                         <Menu size={18} className="text-slate-700" />
                     </button>
-                    <div className="text-sm text-slate-600">Symbiol</div>
+                    <div className="text-sm text-slate-600">symly.ai</div>
                 </div>
                 <div className="flex items-center gap-4">
                     <div className="text-xs text-slate-500">Welcome {username}</div>
