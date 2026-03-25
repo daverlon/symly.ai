@@ -224,7 +224,6 @@ export default function Dashboard() {
                     <div className="text-sm text-slate-600">symly.ai</div>
                 </div>
                 <div className="flex items-center gap-4">
-                    <div className="text-xs text-slate-500">Welcome {username}</div>
                     <button
                         onClick={handleConnectPhone}
                         disabled={activeSessionId == null}
