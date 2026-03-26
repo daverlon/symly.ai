@@ -1,6 +1,7 @@
 package app.symbiol.backend.api;
 
 import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import org.apache.catalina.connector.Response;
@@ -58,7 +59,7 @@ public class SessionController {
         try {
             String username = jwtService.validateTokenAndGetUsername(token);
             Session session = sessionService.createSessionForUsername(username);
-            return ResponseEntity.ok(new SessionIdDto(session.getPublicId()));
+            return ResponseEntity.ok(new SessionIdDto(session.getPublicId(), session.getCreationDate()));
         } catch (JwtException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
@@ -75,7 +76,12 @@ public class SessionController {
             String username = jwtService.validateTokenAndGetUsername(token);
             return ResponseEntity.ok(
                 sessionService.listSessionsForUsername(username).stream()
-                    .map(s -> new SessionIdDto(s.getPublicId()))
+                    .map(s -> 
+                        new SessionIdDto(
+                            s.getPublicId(), 
+                            s.getCreationDate()
+                        )
+                    )
                     .toList()
             );
         } catch (JwtException e) {
@@ -116,7 +122,7 @@ public class SessionController {
             Session s = sessionService.findSessionForUsername(publicSessionId, username)
                 .orElseThrow(() -> new SessionNotFoundException(publicSessionId));
 
-            SessionDto res = new SessionDto("Hello, World!", Instant.ofEpochMilli(s.getCreationDate().getTime()));
+            SessionDto res = new SessionDto("Hello, World!", s.getCreationDate());
 
             return ResponseEntity.ok(res);
 

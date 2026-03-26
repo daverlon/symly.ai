@@ -81,9 +81,16 @@ export default function Dashboard() {
 
     async function handleCreateSession() {
         try {
-            const created = await createSession();
-            setSessions((prev) => [...prev, created]);
-            changeSession(created.id);
+            await createSession(); // create it on the server
+            const refreshedSessions = await listSessions(); // fetch the full, updated list
+            setSessions(
+                refreshedSessions.sort(
+                    (a, b) => new Date(b.creationDate).getTime() - new Date(a.creationDate).getTime()
+                )
+            );
+            if (refreshedSessions.length > 0) {
+                changeSession(refreshedSessions[0].id); // optionally select the newest
+            }
         } catch (e) {
             const msg = e instanceof Error ? e.message : "Failed to create session.";
             alert(msg);
@@ -151,9 +158,14 @@ export default function Dashboard() {
     }, [sessionId])
 
     useEffect(() => {
-        // Fetch sessions once on mount
         listSessions()
-            .then(setSessions)
+            .then((fetchedSessions) => {
+                // Convert to Date objects and sort newest first
+                const sorted = fetchedSessions
+                    .slice()
+                    .sort((a, b) => new Date(b.creationDate).getTime() - new Date(a.creationDate).getTime());
+                setSessions(sorted);
+            })
             .catch((e) => {
                 const msg = e instanceof Error ? e.message : "Failed to load sessions.";
                 alert(msg);
@@ -324,8 +336,7 @@ export default function Dashboard() {
                                     }}
                                     className="flex-1 text-left"
                                 >
-                                    {s.id}
-                                </button>
+                                {`${s.id} (${new Date(s.creationDate).toLocaleString()})`}                                </button>
 
                                 <button
                                     type="button"

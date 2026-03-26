@@ -2,6 +2,7 @@ const API_BASE = "http://localhost:8080";
 
 export type SessionId = {
     id: string;
+    creationDate: string;
 };
 
 export type UploadSessionKeyResponse = {

@@ -1,6 +1,7 @@
 package app.symbiol.backend.model;
 
 import java.sql.Date;
+import java.time.Instant;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -14,14 +15,14 @@ public class Account {
     @GeneratedValue(strategy=GenerationType.AUTO)
     private Long id;
 
-    private Date creationDate;
+    private Instant creationDate;
     private String username;
     private String hashedPassword;
 
     protected Account() {};
 
     public Account(String username, String hashedPassword) {
-        this.creationDate = new Date(System.currentTimeMillis());
+        this.creationDate = Instant.now();
         this.username = username;
         this.hashedPassword = hashedPassword;
     }
@@ -29,5 +30,5 @@ public class Account {
     public Long getId() { return this.id; }
     public String getUsername() { return this.username; }
     public String getHashedPassword() { return this.hashedPassword; }
-    public Date getCreationDate() { return this.creationDate; }
+    public Instant getCreationDate() { return this.creationDate; }
 }

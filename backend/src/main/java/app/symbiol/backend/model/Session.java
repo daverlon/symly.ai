@@ -1,6 +1,7 @@
 package app.symbiol.backend.model;
 
 import java.sql.Date;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.Random;
 
@@ -24,7 +25,7 @@ public class Session {
     @Column(nullable = false, unique = true)
     private String publicId;
 
-    private Date creationDate;
+    private Instant creationDate;
     private String generatePublicId() {
         byte[] bytes = new byte[16];
         random.nextBytes(bytes);
@@ -39,7 +40,7 @@ public class Session {
     }
 
     public Session(Account account) {
-        this.creationDate = new Date(System.currentTimeMillis());
+        this.creationDate = Instant.now();
         this.publicId = generatePublicId();
         this.account = account;
     }
@@ -52,7 +53,7 @@ public class Session {
         return publicId;
     }
 
-    public Date getCreationDate() {
+    public Instant getCreationDate() {
         return creationDate;
     }
 }

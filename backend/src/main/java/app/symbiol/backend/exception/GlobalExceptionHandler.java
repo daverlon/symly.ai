@@ -12,7 +12,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<String> handleException(Exception ex) {
-        log.info("Generic exception thrown: " + ex.getMessage());
+        log.info("Generic exception thrown: " + ex.getMessage() + ", " + ex.toString());
         
         return ResponseEntity
             .status(500)
