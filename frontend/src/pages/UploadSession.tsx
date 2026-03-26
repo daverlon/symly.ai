@@ -54,7 +54,7 @@ export default function UploadSession() {
             <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 text-slate-700">
                 <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white/70 p-6">
                     <div className="text-lg font-semibold mb-2">Couldn’t connect</div>
-                    <div className="text-sm text-slate-600">{error ?? "Invalid URL"}</div>
+                    <div className="text-sm text-slate-600">{error ?? "Invalid session"}</div>
                 </div>
             </div>
         );
