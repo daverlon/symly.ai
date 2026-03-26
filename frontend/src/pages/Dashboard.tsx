@@ -110,6 +110,9 @@ export default function Dashboard() {
         try {
             await deleteSession(sessionId);
 
+            const updatedSessions = await listSessions();
+            setSessions(updatedSessions);
+
             changeSession(null);
             setQrOpen(false);
             setPhoneToken(null);
