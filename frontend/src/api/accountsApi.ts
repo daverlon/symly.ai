@@ -18,6 +18,11 @@ type UploadSessionDto = {
     username: string
 }
 
+type SessionDto = {
+    message: string,
+    creationDate: string
+}
+
 export async function signupAccount(username: string, password: string): Promise<SignupResponse> {
     const response = await fetch(`${API_BASE}/accounts`, {
         method: 'POST',
@@ -61,6 +66,26 @@ export async function verifyToken(token: string): Promise<AuthVerificationRespon
         const errorText = await response.text();
         throw new Error(errorText);
     }
+    return await response.json();
+}
+
+export async function getSessionData(token: string | null, publicSessionId: string): Promise<SessionDto> {
+
+    if (!token) {
+        throw new Error("No token in getSessionData");
+    }
+
+    const response = await fetch(`${API_BASE}/sessions/${publicSessionId}`, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
+    }
+
     return await response.json();
 }
 

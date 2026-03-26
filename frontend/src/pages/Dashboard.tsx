@@ -1,21 +1,53 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useNavigate } from "react-router-dom"
-import { verifyToken } from "../api/accountsApi"
+import { useNavigate, useParams } from "react-router-dom"
+import { getSessionData, verifyToken } from "../api/accountsApi"
 import { createUploadSessionKey, createSession, deleteAllSessions, deleteSession, listSessions, type SessionId } from "../api/sessionsApi"
 import { QRCodeSVG } from "qrcode.react"
 import { Menu, Plus, X } from "lucide-react"
 
 export default function Dashboard() {
 
+
     const navigate = useNavigate();
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const [username, setUsername] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [sessions, setSessions] = useState<SessionId[]>([]);
-    const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
     const [qrOpen, setQrOpen] = useState(false);
     const [phoneToken, setPhoneToken] = useState<string | null>(null);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+
+    const { sessionId } = useParams<{ sessionId: string }>();
+
+    const activeSessionId = sessionId ?? null;
+
+    const lastRequestedSession = useRef<string | null>(null);
+
+    async function changeSession(sessionId: string | null) {
+        lastRequestedSession.current = sessionId;
+        setLoading(true);
+
+        if (!sessionId) {
+            navigate("/dashboard");
+            setLoading(false);
+            return;
+        }
+
+        try {
+            const token = localStorage.getItem("jwt");
+            const sessionData = await getSessionData(token, sessionId);
+
+            if (lastRequestedSession.current !== sessionId) return; // Ignore outdated request
+
+            setLoading(false);
+            navigate(`/dashboard/session/${sessionId}`);
+        } catch (e) {
+            if (lastRequestedSession.current !== sessionId) return;
+            // alert("Failed to fetch session.");
+            setLoading(false);
+            navigate("/dashboard");
+        }
+    }
 
     async function checkToken() {
         const token = localStorage.getItem("jwt");
@@ -51,7 +83,7 @@ export default function Dashboard() {
         try {
             const created = await createSession();
             setSessions((prev) => [...prev, created]);
-            setActiveSessionId(created.id);
+            changeSession(created.id);
         } catch (e) {
             const msg = e instanceof Error ? e.message : "Failed to create session.";
             alert(msg);
@@ -78,17 +110,10 @@ export default function Dashboard() {
         try {
             await deleteSession(sessionId);
 
-            setSessions((prev) => {
-                const remaining = prev.filter((s) => s.id !== sessionId);
-                setActiveSessionId((prevActive) =>
-                    prevActive === sessionId ? remaining[0]?.id ?? null : prevActive
-                );
-                if (activeSessionId === sessionId) {
-                    setQrOpen(false);
-                    setPhoneToken(null);
-                }
-                return remaining;
-            });
+            changeSession(null);
+            setQrOpen(false);
+            setPhoneToken(null);
+
         } catch (e) {
             const msg = e instanceof Error ? e.message : "Failed to delete session.";
             alert(msg);
@@ -104,9 +129,10 @@ export default function Dashboard() {
         try {
             await deleteAllSessions();
             setSessions([]);
-            setActiveSessionId(null);
+            changeSession(null);
             setQrOpen(false);
             setPhoneToken(null);
+            navigate("/dashboard");
         } catch (e) {
             const msg = e instanceof Error ? e.message : "Failed to delete sessions.";
             alert(msg);
@@ -118,22 +144,21 @@ export default function Dashboard() {
     }, []);
 
     useEffect(() => {
-        if (loading) return;
+        changeSession(sessionId ?? null);
+    }, [sessionId])
 
+    useEffect(() => {
+        // Fetch sessions once on mount
         listSessions()
-            .then((res) => {
-                setSessions(res);
-                setActiveSessionId(res[0]?.id ?? null);
-            })
+            .then(setSessions)
             .catch((e) => {
                 const msg = e instanceof Error ? e.message : "Failed to load sessions.";
                 alert(msg);
             });
-    }, [loading]);
+    }, []);
+
 
     useEffect(() => {
-        if (loading) return;
-
         const canvas = canvasRef.current;
         if (!canvas) return;
 
@@ -153,29 +178,24 @@ export default function Dashboard() {
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             ctx.clearRect(0, 0, width, height);
 
-            // Light grid (canvas "dashboard" feel, no widgets yet).
+            // Draw grid
             const spacing = 40;
             ctx.lineWidth = 1;
-            ctx.strokeStyle = "rgba(148, 163, 184, 0.22)"; // slate-400-ish
-
-            const maxX = width;
-            const maxY = height;
-
-            for (let x = 0; x <= maxX; x += spacing) {
+            ctx.strokeStyle = "rgba(148, 163, 184, 0.22)";
+            for (let x = 0; x <= width; x += spacing) {
                 ctx.beginPath();
                 ctx.moveTo(x, 0);
-                ctx.lineTo(x, maxY);
+                ctx.lineTo(x, height);
                 ctx.stroke();
             }
-
-            for (let y = 0; y <= maxY; y += spacing) {
+            for (let y = 0; y <= height; y += spacing) {
                 ctx.beginPath();
                 ctx.moveTo(0, y);
-                ctx.lineTo(maxX, y);
+                ctx.lineTo(width, y);
                 ctx.stroke();
             }
 
-            // Subtle center glow to make the empty dashboard feel "alive".
+            // Subtle center glow
             const gradient = ctx.createRadialGradient(
                 width * 0.55,
                 height * 0.35,
@@ -184,14 +204,35 @@ export default function Dashboard() {
                 height * 0.35,
                 Math.max(width, height)
             );
-            gradient.addColorStop(0, "rgba(59, 130, 246, 0.06)"); // blue-500 @ low alpha
+            gradient.addColorStop(0, "rgba(59, 130, 246, 0.06)");
             gradient.addColorStop(1, "rgba(59, 130, 246, 0.00)");
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, width, height);
+
+            // **Draw loading spinner if loading**
+            if (loading) {
+                const spinnerRadius = 20;
+                const now = Date.now() / 500; // speed
+                ctx.save();
+                ctx.translate(width / 2, height / 2);
+                ctx.rotate(now % (2 * Math.PI));
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = "#3B82F6"; // blue
+                ctx.beginPath();
+                ctx.arc(0, 0, spinnerRadius, 0, Math.PI * 1.5);
+                ctx.stroke();
+                ctx.restore();
+
+                // Text
+                ctx.font = "16px sans-serif";
+                ctx.fillStyle = "#1E293B"; // slate-800
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("Loading session", width / 2, height / 2 - 45);
+            }
         };
 
         draw();
-
         let raf = 0;
         const onResize = () => {
             cancelAnimationFrame(raf);
@@ -199,15 +240,13 @@ export default function Dashboard() {
         };
 
         window.addEventListener("resize", onResize);
+        const interval = setInterval(() => requestAnimationFrame(draw), 16); // ~60fps for spinner
         return () => {
+            clearInterval(interval);
             cancelAnimationFrame(raf);
             window.removeEventListener("resize", onResize);
         };
     }, [loading]);
-
-    if (loading) {
-        return <div>Loading...</div>;
-    }
 
     return (
         <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
@@ -221,7 +260,7 @@ export default function Dashboard() {
                     >
                         <Menu size={18} className="text-slate-700" />
                     </button>
-                    <div className="text-sm text-slate-600">symly.ai</div>
+                    <div className="text-sm text-slate-600 cursor-pointer" onClick={() => changeSession(null) }>symly.ai</div>
                 </div>
                 <div className="flex items-center gap-4">
                     <button
@@ -276,11 +315,10 @@ export default function Dashboard() {
                             >
                                 <button
                                     type="button"
-                                    onClick={() => { 
-                                        setActiveSessionId(s.id);
+                                    onClick={() => {
+                                        changeSession(s.id);
                                         setSidebarOpen(false);
-                                        navigate(`/dashboard/session/${s.id}`)
-                                    } }
+                                    }}
                                     className="flex-1 text-left"
                                 >
                                     {s.id}
@@ -319,6 +357,25 @@ export default function Dashboard() {
                     ref={canvasRef}
                     className="absolute inset-0 w-full h-full pointer-events-none"
                 />
+                {!activeSessionId && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="rounded-2xl border border-slate-200 bg-white/80 backdrop-blur p-8 text-center shadow-sm">
+                            <div className="text-lg font-semibold text-slate-800">
+                                No session selected
+                            </div>
+                            <div className="text-sm text-slate-600 mt-2">
+                                Select a session from the sidebar or create a new one to get started.
+                            </div>
+
+                            <button
+                                onClick={handleCreateSession}
+                                className="mt-5 rounded-lg bg-blue-600 text-white px-4 py-2 text-sm font-medium hover:bg-blue-500"
+                            >
+                                Create new session
+                            </button>
+                        </div>
+                    </div>
+                )}
             </main>
 
             {qrOpen && phoneToken && (

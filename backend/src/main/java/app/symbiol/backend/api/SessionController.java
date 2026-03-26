@@ -1,5 +1,6 @@
 package app.symbiol.backend.api;
 
+import java.time.Instant;
 import java.util.List;
 
 import org.apache.catalina.connector.Response;
@@ -10,20 +11,25 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import app.symbiol.backend.dto.SessionDto;
 import app.symbiol.backend.dto.SessionIdDto;
 import app.symbiol.backend.dto.UploadSessionDto;
 import app.symbiol.backend.dto.UploadSessionJwtDto;
 import app.symbiol.backend.dto.UploadSessionKeyDto;
 import app.symbiol.backend.dto.UploadSessionValidateDto;
+import app.symbiol.backend.exception.SessionNotFoundException;
 import app.symbiol.backend.model.Session;
 import app.symbiol.backend.model.UploadSessionKey;
 import app.symbiol.backend.security.JwtService;
 import app.symbiol.backend.service.SessionService;
 import io.jsonwebtoken.JwtException;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RestController
 public class SessionController {
 
@@ -95,9 +101,9 @@ public class SessionController {
         }
     }
 
-    @DeleteMapping("/sessions/{sessionId}")
-    public ResponseEntity<Void> deleteSession(
-        @PathVariable Long sessionId,
+    @GetMapping("/sessions/{publicSessionId}")
+    public ResponseEntity<SessionDto> getSessionData(
+        @PathVariable String publicSessionId,
         @RequestHeader("Authorization") String authHeader
     ) {
         String token = extractBearerToken(authHeader);
@@ -107,12 +113,42 @@ public class SessionController {
 
         try {
             String username = jwtService.validateTokenAndGetUsername(token);
-            if (sessionService.findSessionForUsername(sessionId, username).isEmpty()) {
+            Session s = sessionService.findSessionForUsername(publicSessionId, username)
+                .orElseThrow(() -> new SessionNotFoundException(publicSessionId));
+
+            SessionDto res = new SessionDto("Hello, World!", Instant.ofEpochMilli(s.getCreationDate().getTime()));
+
+            return ResponseEntity.ok(res);
+
+        } catch (JwtException ex) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (SessionNotFoundException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        } catch (Exception ex) {
+            log.error(ex.toString());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+
+        }
+    }
+
+    @DeleteMapping("/sessions/{publicSessionId}")
+    public ResponseEntity<Void> deleteSession(
+        @PathVariable String publicSessionId,
+        @RequestHeader("Authorization") String authHeader
+    ) {
+        String token = extractBearerToken(authHeader);
+        if (token == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        try {
+            String username = jwtService.validateTokenAndGetUsername(token);
+            if (sessionService.findSessionForUsername(publicSessionId, username).isEmpty()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
 
-            sessionService.deleteUploadKey(sessionId);
-            sessionService.deleteSessionForUsername(sessionId, username);
+            sessionService.deleteUploadKey(publicSessionId);
+            sessionService.deleteSessionForUsername(publicSessionId, username);
             return ResponseEntity.noContent().build();
         } catch (JwtException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();

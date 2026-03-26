@@ -54,14 +54,14 @@ public class SessionService {
         return sessionRepository.findByAccount(account);
     }
 
-    public Optional<Session> findSessionForUsername(Long sessionId, String username) {
+    public Optional<Session> findSessionForUsername(String publicSessionId, String username) {
         Account account = accountRepository.findByUsername(username)
             .orElseThrow(() -> new AccountNotFoundException(username));
-        return sessionRepository.findByIdAndAccount(sessionId, account);
+        return sessionRepository.findByPublicIdAndAccount(publicSessionId, account);
     }
 
-    public void deleteSessionForUsername(Long sessionId, String username) {
-        Session session = findSessionForUsername(sessionId, username)
+    public void deleteSessionForUsername(String publicSessionId, String username) {
+        Session session = findSessionForUsername(publicSessionId, username)
             .orElseThrow(() -> new AccountNotFoundException(username));
         sessionRepository.delete(session);
     }
@@ -98,8 +98,10 @@ public class SessionService {
         return key;
     }
 
-    public void deleteUploadKey(Long sessionId) {
-        uploadKeyRepository.deleteBySessionId(sessionId);
+    public void deleteUploadKey(String publicSessionId) {
+        Session s = sessionRepository.findByPublicId(publicSessionId)
+            .orElseThrow(() -> new InvalidUploadSessionKeyException(publicSessionId));
+        uploadKeyRepository.deleteBySession(s);
     }
 
     public boolean isUploadSessionKeyValid(String uploadSessionKey) {
