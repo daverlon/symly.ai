@@ -1,10 +1,7 @@
 package app.symbiol.backend.api;
 
-import java.time.Instant;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-import org.apache.catalina.connector.Response;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,16 +9,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import app.symbiol.backend.dto.SessionDto;
 import app.symbiol.backend.dto.SessionIdDto;
 import app.symbiol.backend.dto.UploadSessionDto;
-import app.symbiol.backend.dto.UploadSessionJwtDto;
 import app.symbiol.backend.dto.UploadSessionKeyDto;
-import app.symbiol.backend.dto.UploadSessionValidateDto;
 import app.symbiol.backend.exception.SessionNotFoundException;
 import app.symbiol.backend.model.Session;
 import app.symbiol.backend.model.UploadSessionKey;

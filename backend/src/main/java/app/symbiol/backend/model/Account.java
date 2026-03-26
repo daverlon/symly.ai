@@ -1,6 +1,5 @@
 package app.symbiol.backend.model;
 
-import java.sql.Date;
 import java.time.Instant;
 
 import jakarta.persistence.Entity;
