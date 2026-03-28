@@ -1,8 +1,8 @@
 package app.symbiol.backend.model;
 
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.Random;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -15,17 +15,17 @@ import jakarta.persistence.ManyToOne;
 @Entity
 public class Session {
 
-    private final Random random = new Random();
-
+    private static final SecureRandom random = new SecureRandom();
+    
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, unique = true, updatable = false)
     private String publicId;
 
     private Instant creationDate;
-    private String generatePublicId() {
+    private static String generatePublicId() {
         byte[] bytes = new byte[16];
         random.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
