@@ -33,10 +33,9 @@ public class WebSecurityConfig {
             .cors(cors -> {})
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/auth/**", "/accounts").permitAll()
-                .requestMatchers("/sessions/**", "/uploadSession/**").permitAll()
-                .requestMatchers("/u/**").permitAll()
-                .anyRequest().authenticated()
+                .requestMatchers("/auth/**", "/accounts").permitAll() // login/register
+                .requestMatchers("/u/**").permitAll()                 // public upload route
+                .anyRequest().authenticated()                         // everything else requires JWT
             )
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
             ;
