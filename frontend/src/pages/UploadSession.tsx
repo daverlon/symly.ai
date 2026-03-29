@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {  } from "../api/sessionsApi";
 import { getUploadSessionData } from "../api/accountsApi";
+import { uploadImageFile } from "../api/imageApi";
 
 
 
@@ -19,6 +20,32 @@ export default function UploadSession() {
     const navigate = useNavigate();
 
     const { uploadKey } = useParams<{ uploadKey: string }>();
+
+    const [file, setFile] = useState<File | null>(null);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selected = e.target.files?.[0];
+        if (selected) {
+            setFile(selected);
+            console.log("Selected file:", selected);
+        }
+    };
+
+    async function onFileUpload() {
+        setLoading(true);
+        if (!uploadKey) {
+            console.error("Cannot upload file without upload key");
+            return;
+        }
+        if (!file) {
+            console.error("Canont upload file without file");
+            return;
+        }
+        const res = uploadImageFile(uploadKey, file);
+        alert((await res).responseText);
+
+        setLoading(false);
+    }
 
     useEffect(() => {
         async function fetchData() {
@@ -67,10 +94,34 @@ export default function UploadSession() {
                 <div className="text-2xl font-semibold text-blue-600 mt-2">{sessionId}</div>
                 <div className="text-l font-semibold text-slate-500 mt-2">Expires: {sessionExpiry}</div>
                 <div className="text-l font-semibold text-slate-500 mt-2">Owner: {sessionUsername}</div>
+                <br></br>
 
-                <div className="mt-6 rounded-xl bg-slate-50 border border-slate-200 p-4 text-sm text-slate-600">
-                    Mobile photo upload UI will be added next. For now, the session token validation is
-                    working.
+                <div className="p-4">
+                    <label
+                        htmlFor="fileInput"
+                        className="inline-block px-6 py-3 bg-indigo-600 text-white rounded-lg cursor-pointer hover:bg-indigo-700"
+                    >
+                        Add file or take photo
+                    </label>
+                    <input
+                        id="fileInput"
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={handleFileChange}
+                    />
+
+                    {file && (
+                        <div className="mt-2">
+                            <p className="text-gray-700">Selected file: {file.name}</p>
+                            <button className="mt-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                            onClick={onFileUpload}
+                            >
+                                Upload
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

@@ -1,5 +1,6 @@
 package app.symbiol.backend.exception;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -45,5 +46,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity
             .status(401)
             .body(ex.getMessage());
+    }
+
+    @ExceptionHandler(InvalidUploadImageTypeException.class)
+    public ResponseEntity<String> handleInvalidUploadImageType(InvalidUploadImageTypeException ex) {
+        return ResponseEntity
+        .status(HttpStatus.NOT_IMPLEMENTED)
+        .body(ex.getMessage());
     }
 }

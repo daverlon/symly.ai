@@ -1,5 +1,6 @@
 package app.symbiol.backend.api;
 
+import java.io.IOException;
 import java.util.List;
 
 import org.springframework.security.core.Authentication;
@@ -8,16 +9,22 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import app.symbiol.backend.dto.ImageUploadResponseDto;
 import app.symbiol.backend.dto.SessionDto;
 import app.symbiol.backend.dto.SessionIdDto;
 import app.symbiol.backend.dto.UploadSessionDto;
 import app.symbiol.backend.dto.UploadSessionKeyDto;
+import app.symbiol.backend.exception.InvalidUploadImageTypeException;
 import app.symbiol.backend.exception.SessionNotFoundException;
 import app.symbiol.backend.model.Session;
 import app.symbiol.backend.model.UploadSessionKey;
+import app.symbiol.backend.service.ImageUploadService;
+import app.symbiol.backend.service.LocalImageStorageService;
 import app.symbiol.backend.service.SessionService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -27,8 +34,17 @@ public class SessionController {
 
     private final SessionService sessionService;
 
-    public SessionController(SessionService sessionService) {
+    private final LocalImageStorageService imageStorageService;
+    private final ImageUploadService imageUploadService;
+
+    public SessionController(
+        SessionService sessionService,
+        ImageUploadService imageUploadService
+
+    ) {
         this.sessionService = sessionService;
+        this.imageUploadService = imageUploadService;
+        this.imageStorageService = new LocalImageStorageService();
     }
 
     @PostMapping("/sessions")
@@ -134,5 +150,26 @@ public class SessionController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
     }
+
+    @PostMapping("/u/{uploadKey}")
+    public ResponseEntity<ImageUploadResponseDto>uploadImageFromUploadSession(
+        @PathVariable String uploadKey,
+        @RequestParam("file") MultipartFile file
+    ) throws InvalidUploadImageTypeException, IOException {
+
+        try {
+            boolean valid = sessionService.isUploadSessionKeyValid(uploadKey);
+            if (!valid) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            String fileName = imageStorageService.save(file.getBytes(), file.getContentType());
+            imageUploadService.SaveImageReferenceForUploadKey(fileName, uploadKey);
+            return
+                ResponseEntity.ok(new ImageUploadResponseDto("Image(s) uploaded"));
+        } catch (Exception ex) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+    }
+    
 }
 

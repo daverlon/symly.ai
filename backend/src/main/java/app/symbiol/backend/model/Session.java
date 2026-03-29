@@ -3,6 +3,7 @@ package app.symbiol.backend.model;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.List;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -11,6 +12,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 
 @Entity
 public class Session {
@@ -34,6 +36,9 @@ public class Session {
     @ManyToOne(optional = false)
     @JoinColumn(name = "account_id")
     private Account account;
+
+    @OneToMany(mappedBy = "session")
+    private List<Image> images;
 
     protected Session() {
     }
