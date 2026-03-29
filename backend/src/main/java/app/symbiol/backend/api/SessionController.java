@@ -2,8 +2,10 @@ package app.symbiol.backend.api;
 
 import java.util.List;
 
+import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,7 +20,6 @@ import app.symbiol.backend.dto.UploadSessionKeyDto;
 import app.symbiol.backend.exception.SessionNotFoundException;
 import app.symbiol.backend.model.Session;
 import app.symbiol.backend.model.UploadSessionKey;
-import app.symbiol.backend.security.JwtService;
 import app.symbiol.backend.service.SessionService;
 import io.jsonwebtoken.JwtException;
 import lombok.extern.slf4j.Slf4j;
@@ -27,30 +28,19 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 public class SessionController {
 
-    private final JwtService jwtService;
     private final SessionService sessionService;
 
-    public SessionController(JwtService jwtService, SessionService sessionService) {
-        this.jwtService = jwtService;
+    public SessionController(SessionService sessionService) {
         this.sessionService = sessionService;
-    }
-
-    private String extractBearerToken(String authHeader) {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return null;
-        }
-        return authHeader.substring(7);
     }
 
     @PostMapping("/sessions")
     public ResponseEntity<SessionIdDto> createSession(@RequestHeader("Authorization") String authHeader) {
-        String token = extractBearerToken(authHeader);
-        if (token == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String username = auth.getName();
 
         try {
-            String username = jwtService.validateTokenAndGetUsername(token);
             Session session = sessionService.createSessionForUsername(username);
             return ResponseEntity.ok(new SessionIdDto(session.getPublicId(), session.getCreationDate()));
         } catch (JwtException e) {
@@ -60,13 +50,10 @@ public class SessionController {
 
     @GetMapping("/sessions")
     public ResponseEntity<List<SessionIdDto>> listSessions(@RequestHeader("Authorization") String authHeader) {
-        String token = extractBearerToken(authHeader);
-        if (token == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String username = auth.getName();
 
         try {
-            String username = jwtService.validateTokenAndGetUsername(token);
             return ResponseEntity.ok(
                 sessionService.listSessionsForUsername(username).stream()
                     .map(s -> 
@@ -87,11 +74,6 @@ public class SessionController {
         @PathVariable String sessionId,
         @RequestHeader("Authorization") String authHeader
     ) {
-        String token = extractBearerToken(authHeader);
-        if (token == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-
         try {
             UploadSessionKeyDto key = sessionService.createUploadSessionKey(sessionId);
             return ResponseEntity.ok(key);
@@ -105,13 +87,10 @@ public class SessionController {
         @PathVariable String publicSessionId,
         @RequestHeader("Authorization") String authHeader
     ) {
-        String token = extractBearerToken(authHeader);
-        if (token == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String username = auth.getName();
 
         try {
-            String username = jwtService.validateTokenAndGetUsername(token);
             Session s = sessionService.findSessionForUsername(publicSessionId, username)
                 .orElseThrow(() -> new SessionNotFoundException(publicSessionId));
 
@@ -135,13 +114,10 @@ public class SessionController {
         @PathVariable String publicSessionId,
         @RequestHeader("Authorization") String authHeader
     ) {
-        String token = extractBearerToken(authHeader);
-        if (token == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String username = auth.getName();
 
         try {
-            String username = jwtService.validateTokenAndGetUsername(token);
             if (sessionService.findSessionForUsername(publicSessionId, username).isEmpty()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
@@ -156,13 +132,10 @@ public class SessionController {
 
     @DeleteMapping("/sessions")
     public ResponseEntity<Void> deleteAllSessions(@RequestHeader("Authorization") String authHeader) {
-        String token = extractBearerToken(authHeader);
-        if (token == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String username = auth.getName();
 
         try {
-            String username = jwtService.validateTokenAndGetUsername(token);
             sessionService.deleteAllSessionsForUsername(username);
             return ResponseEntity.noContent().build();
         } catch (JwtException e) {
