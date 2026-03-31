@@ -116,7 +116,12 @@ public class SessionController {
         }
 
         sessionService.deleteUploadKey(publicSessionId);
-        sessionService.deleteSessionImages(publicSessionId);
+        List<String> fileNames = imageUploadService.getAllImageKeysForPublicSessionId(publicSessionId);
+        imageUploadService.deleteAllImagesForPublicSessionId(publicSessionId);
+        for (String fn : fileNames) {
+            imageStorageService.delete(fn);
+        }
+
         sessionService.deleteSessionForUsername(publicSessionId, username);
         return ResponseEntity.noContent().build();
     }
