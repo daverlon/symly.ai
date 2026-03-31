@@ -16,10 +16,13 @@ import app.symbiol.backend.model.Account;
 import app.symbiol.backend.model.Session;
 import app.symbiol.backend.model.UploadSessionKey;
 import app.symbiol.backend.repository.AccountRepository;
+import app.symbiol.backend.repository.ImageRepository;
 import app.symbiol.backend.repository.SessionRepository;
 import app.symbiol.backend.repository.UploadKeyRepository;
 import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @Transactional
 public class SessionService {
@@ -27,6 +30,7 @@ public class SessionService {
     private final AccountRepository accountRepository;
     private final SessionRepository sessionRepository;
     private final UploadKeyRepository uploadKeyRepository;
+    private final ImageRepository imageRepository;
 
     private final SecureRandom random = new SecureRandom();
 
@@ -34,11 +38,13 @@ public class SessionService {
 
         AccountRepository accountRepository, 
         SessionRepository sessionRepository, 
-        UploadKeyRepository uploadKeyRepository) {
+        UploadKeyRepository uploadKeyRepository,
+        ImageRepository imageRepository) {
 
         this.accountRepository = accountRepository;
         this.sessionRepository = sessionRepository;
         this.uploadKeyRepository = uploadKeyRepository;
+        this.imageRepository = imageRepository;
     }
 
     public Session createSessionForUsername(String username) {
@@ -69,8 +75,9 @@ public class SessionService {
     public void deleteAllSessionsForUsername(String username) {
         List<Session> sessions = listSessionsForUsername(username);
         for (int i = 0; i < sessions.size(); i++) {
-            Long id = sessions.get(i).getId();
-            uploadKeyRepository.deleteBySessionId(id);
+            Session s = sessions.get(i);
+            uploadKeyRepository.deleteBySession(s);
+            imageRepository.deleteBySession(s);
         }
         sessionRepository.deleteAll(sessions);
     }
@@ -96,6 +103,12 @@ public class SessionService {
         uploadKeyRepository.save(uploadSessionKey);
 
         return key;
+    }
+
+    public void deleteSessionImages(String publicSessionId) {
+        Session s = sessionRepository.findByPublicId(publicSessionId)
+            .orElseThrow(() -> new InvalidUploadSessionKeyException(publicSessionId));
+        imageRepository.deleteBySession(null);
     }
 
     public void deleteUploadKey(String publicSessionId) {

@@ -116,6 +116,7 @@ public class SessionController {
         }
 
         sessionService.deleteUploadKey(publicSessionId);
+        sessionService.deleteSessionImages(publicSessionId);
         sessionService.deleteSessionForUsername(publicSessionId, username);
         return ResponseEntity.noContent().build();
     }

@@ -32,6 +32,10 @@ public class Image {
         uploadDate = Instant.now();
     }
 
+    protected Image() { 
+
+    }
+
     public Image(Session session, String fileName) {
         this.session = session;
         this.fileName = fileName;
