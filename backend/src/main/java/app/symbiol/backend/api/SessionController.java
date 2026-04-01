@@ -104,6 +104,24 @@ public class SessionController {
         }
     }
 
+    /*
+        ------------------------------------------
+
+            Deleting sessions:
+        
+            1. delete upload key 
+            2. delete image reference
+            3. delete local image
+            4. delete session
+
+            To do:
+
+            Move logic outside of controller into a service 
+            responsible for deleting sessions
+
+        ------------------------------------------
+     */
+
     @DeleteMapping("/sessions/{publicSessionId}")
     public ResponseEntity<Void> deleteSession(
         @PathVariable String publicSessionId,
@@ -130,9 +148,26 @@ public class SessionController {
     public ResponseEntity<Void> deleteAllSessions(Authentication auth) {
         String username = auth.getName();
 
+        List<String> ids = sessionService.listSessionsForUsername(username).stream().map(Session::getPublicId).toList();
+        for (String pId : ids) {
+            sessionService.deleteUploadKey(pId);
+            List<String> fileNames = imageUploadService.getAllImageKeysForPublicSessionId(pId);
+            imageUploadService.deleteAllImagesForPublicSessionId(pId);
+            for (String fn : fileNames) {
+                imageStorageService.delete(fn);
+            }
+
+            sessionService.deleteSessionForUsername(pId, username);
+        }
+
         sessionService.deleteAllSessionsForUsername(username);
+
         return ResponseEntity.noContent().build();
     }
+
+    /*
+        ------------------------------------------
+    */
 
     @GetMapping("/u/{uploadKey}")
     public ResponseEntity<UploadSessionDto>getUploadSessionData(
