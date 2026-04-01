@@ -186,7 +186,7 @@ public class SessionController {
             UploadSessionKey key = sessionService.findUploadSessionKey(uploadKey);
             Session s = sessionService.findSessionForUploadSessionKey(uploadKey);
             return 
-                ResponseEntity.ok(new UploadSessionDto(s.getPublicId(), key.getExpiresAt(), "placeholder"));
+                ResponseEntity.ok(new UploadSessionDto(s.getPublicId(), key.getExpiresAt(), s.getAccountOnwerUsername()));
 
         } catch (Exception ex) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();

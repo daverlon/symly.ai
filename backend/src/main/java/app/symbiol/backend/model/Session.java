@@ -55,5 +55,9 @@ public class Session {
     public Instant getCreationDate() {
         return creationDate;
     }
+
+    public String getAccountOnwerUsername() {
+        return account.getUsername();
+    }
 }
 
