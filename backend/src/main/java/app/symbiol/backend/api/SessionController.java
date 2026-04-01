@@ -206,7 +206,7 @@ public class SessionController {
             String fileName = imageStorageService.save(file.getBytes(), file.getContentType());
             imageUploadService.SaveImageReferenceForUploadKey(fileName, uploadKey);
             return
-                ResponseEntity.ok(new ImageUploadResponseDto("Image(s) uploaded"));
+                ResponseEntity.ok(new ImageUploadResponseDto("Image uploaded"));
         } catch (Exception ex) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }

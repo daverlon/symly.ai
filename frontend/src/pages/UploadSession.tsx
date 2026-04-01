@@ -41,8 +41,15 @@ export default function UploadSession() {
             console.error("Canont upload file without file");
             return;
         }
-        const res = uploadImageFile(uploadKey, file);
-        alert((await res).responseText);
+        try {
+            const res = uploadImageFile(uploadKey, file);
+            alert((await res).responseText);
+            setFile(null);
+            // alert((await res).responseText);
+        } catch (e) {
+            alert("Failed to upload image.");
+            setFile(null);
+        }
 
         setLoading(false);
     }
