@@ -26,6 +26,7 @@ import app.symbiol.backend.model.Session;
 import app.symbiol.backend.model.UploadSessionKey;
 import app.symbiol.backend.service.ImageUploadService;
 import app.symbiol.backend.service.LocalImageStorageService;
+import app.symbiol.backend.service.NotificationService;
 import app.symbiol.backend.service.SessionService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -38,14 +39,18 @@ public class SessionController {
     private final LocalImageStorageService imageStorageService;
     private final ImageUploadService imageUploadService;
 
+    private final NotificationService notificationService;
+
     public SessionController(
         SessionService sessionService,
-        ImageUploadService imageUploadService
+        ImageUploadService imageUploadService,
+        NotificationService notificationService
 
     ) {
         this.sessionService = sessionService;
         this.imageUploadService = imageUploadService;
         this.imageStorageService = new LocalImageStorageService();
+        this.notificationService = notificationService;
     }
 
     @PostMapping("/sessions")
@@ -206,6 +211,9 @@ public class SessionController {
             }
             String fileName = imageStorageService.save(file.getBytes(), file.getContentType());
             imageUploadService.SaveImageReferenceForUploadKey(fileName, uploadKey);
+            String sessionId = sessionService.findSessionForUploadSessionKey(uploadKey).getPublicId();
+            notificationService.notifySessionClients(sessionId, fileName);
+
             return
                 ResponseEntity.ok(new ImageUploadResponseDto("Image uploaded"));
         } catch (Exception ex) {
