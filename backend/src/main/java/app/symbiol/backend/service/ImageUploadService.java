@@ -9,6 +9,8 @@ import app.symbiol.backend.repository.ImageRepository;
 import app.symbiol.backend.repository.SessionRepository;
 import app.symbiol.backend.repository.UploadKeyRepository;
 import jakarta.transaction.Transactional;
+
+import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -61,5 +63,18 @@ public class ImageUploadService {
         List<Image> images = imageRepository.findBySession(s);
 
         return images.stream().map(Image::getFileName).toList();
+    }
+
+    public List<Image> getAllImagesForPublicSessionId(String publicSessionId) {
+        Session s = sessionRepository
+            .findByPublicId(publicSessionId)
+            .orElseThrow(() -> new SessionNotFoundException(publicSessionId));
+
+        return imageRepository.findBySession(s);
+    }
+
+    public Instant getImageDateForFileName(String fileName) {
+        Image i = imageRepository.findByFileName(fileName);
+        return i.getUploadDate();
     }
 }

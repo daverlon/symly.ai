@@ -16,4 +16,7 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
 
     List<Image> findBySession(Session session);
     
+
+    Image findByFileName(String fileName);
+
 }

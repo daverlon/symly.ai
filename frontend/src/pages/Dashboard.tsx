@@ -1,13 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { act, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { getSessionData, getSessionEventSource, verifyToken } from "../api/accountsApi"
 import { createUploadSessionKey, createSession, deleteAllSessions, deleteSession, listSessions, type SessionId } from "../api/sessionsApi"
 import { QRCodeSVG } from "qrcode.react"
 import { Menu, Plus, X } from "lucide-react"
+import { fetchSessionImages, fetchSingleSessionImage, type SessionImage } from "../api/imageApi"
 
 export default function Dashboard() {
-
-
 
     const navigate = useNavigate();
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -25,6 +24,8 @@ export default function Dashboard() {
     const activeSessionId = sessionId ?? null;
 
     const lastRequestedSession = useRef<string | null>(null);
+
+    const [sessionImages, setSessionImages] = useState<SessionImage[]>([]);
 
     async function changeSession(sessionId: string | null) {
         lastRequestedSession.current = sessionId;
@@ -152,6 +153,60 @@ export default function Dashboard() {
         }
     }
 
+    async function loadAllSessionImages(sessionId: string | null) {
+        // get images for the session when loaded
+
+
+        const token = localStorage.getItem("jwt");
+
+        // if no session just cleanup and return
+        if (!sessionId || !token) {
+            setSessionImages([]);
+            return;
+        }
+
+        // find images
+        try {
+            const images = await fetchSessionImages(token, sessionId);
+            setSessionImages(images);
+            console.log(`Loaded ${images.length} images:`);
+            for (let i = 0; i < images.length; i++) {
+                const image = images.at(i);
+                if (!image) {
+                    console.log(`\t[${i}] unknown`);
+                    continue;
+                };
+                console.log(`\t[${i}] ${image.name}`);
+            }
+
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : "Failed to load sessions.";
+            alert(msg);
+        }
+    }
+
+    async function loadSingleImage(imageName: string, sessionId: string | null) {
+        const token = localStorage.getItem("jwt");
+
+        // if no session just cleanup and return
+        if (!sessionId || !token) {
+            setSessionImages([]);
+            return;
+        }
+
+        // find images
+        try {
+            const image = await fetchSingleSessionImage(token, sessionId, imageName);
+            setSessionImages(prev => [...prev, image]);
+
+            console.log(`Loaded 1 new image: ${image.name}`);
+
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : "Failed to load sessions.";
+            alert(msg);
+        }
+    }
+
     useEffect(() => {
         checkToken();
     }, []);
@@ -175,6 +230,10 @@ export default function Dashboard() {
             });
     }, []);
 
+    useEffect(() => {
+        loadAllSessionImages(activeSessionId);
+    }, [activeSessionId]);
+
 
     useEffect(() => {
         if (!activeSessionId) {
@@ -195,6 +254,11 @@ export default function Dashboard() {
         };
 
         const handleMessage = (event: MessageEvent) => {
+            const data = JSON.parse(event.data)
+            if (data.type == "image_uploaded") {
+                const imageName = data.payload;
+                loadSingleImage(imageName, activeSessionId);
+            }
             console.log("SSE message received:", event.data);
         };
 

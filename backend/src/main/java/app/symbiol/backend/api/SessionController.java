@@ -1,7 +1,9 @@
 package app.symbiol.backend.api;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
@@ -19,10 +21,12 @@ import app.symbiol.backend.dto.ImageUploadResponseDto;
 import app.symbiol.backend.dto.NotificationMesageType;
 import app.symbiol.backend.dto.SessionDto;
 import app.symbiol.backend.dto.SessionIdDto;
+import app.symbiol.backend.dto.SessionImageDto;
 import app.symbiol.backend.dto.UploadSessionDto;
 import app.symbiol.backend.dto.UploadSessionKeyDto;
 import app.symbiol.backend.exception.InvalidUploadImageTypeException;
 import app.symbiol.backend.exception.SessionNotFoundException;
+import app.symbiol.backend.model.Image;
 import app.symbiol.backend.model.Session;
 import app.symbiol.backend.model.UploadSessionKey;
 import app.symbiol.backend.service.ImageUploadService;
@@ -171,6 +175,47 @@ public class SessionController {
 
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/sessions/{publicSessionId}/images")
+    public ResponseEntity<List<SessionImageDto>> getAllSessionImages(
+        @PathVariable String publicSessionId,
+        Authentication auth
+    ) {
+        List<Image> images = imageUploadService.getAllImagesForPublicSessionId(publicSessionId);
+        if (images.isEmpty()) {
+            return ResponseEntity.noContent().build();
+        }
+
+        List<SessionImageDto> imageDtos = images.stream()
+            .map( i -> {
+                SessionImageDto dto = new SessionImageDto();
+                dto.setName(i.getFileName());
+                dto.setUploadDate(i.getUploadDate());
+                dto.setImage(imageStorageService.load(i.getFileName()));
+                return dto;
+            })
+            .collect(Collectors.toList());
+
+
+        return ResponseEntity.ok(imageDtos);
+    }
+
+     @GetMapping("/sessions/{publicSessionId}/images/{imageName}")
+    public ResponseEntity<SessionImageDto> getSessionImage(
+        @PathVariable String publicSessionId,
+        @PathVariable String imageName,
+        Authentication auth
+    ) {
+        // already have image key (file name)
+
+        SessionImageDto dto = new SessionImageDto();
+        dto.setImage(imageStorageService.load(imageName));
+        dto.setName(imageName);
+        dto.setUploadDate(imageUploadService.getImageDateForFileName(imageName));
+
+        return ResponseEntity.ok(dto);
+    }
+    
 
     /*
         ------------------------------------------

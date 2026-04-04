@@ -13,6 +13,7 @@ import jakarta.persistence.PrePersist;
 
 @Entity
 public class Image {
+
     
     @Id
     @GeneratedValue(strategy=GenerationType.AUTO)
