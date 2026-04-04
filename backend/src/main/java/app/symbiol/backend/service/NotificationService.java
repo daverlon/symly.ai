@@ -11,8 +11,16 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import app.symbiol.backend.dto.NotificationMesageType;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 public class NotificationService {
+
+    public NotificationService(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     private final Map<String, List<SseEmitter>> sessionEmitters = new ConcurrentHashMap<>();
 
@@ -26,7 +34,7 @@ public class NotificationService {
         emitter.onTimeout(() -> removeEmitter(sessionId, emitter));
         emitter.onError(e -> removeEmitter(sessionId, emitter));
 
-        notifySessionClients(sessionId, "Hello " + sessionId);
+        notifySessionClients(sessionId, NotificationMesageType.CONNECTED, sessionId);
         return emitter;
     }
 
@@ -61,12 +69,13 @@ public class NotificationService {
     //    "timestamp": "YYY-MM-DDT23:00:00Z"
     // }
 
-    public void notifySessionClients(String sessionId, String type, Object payload) {
+    public void notifySessionClients(String sessionId, NotificationMesageType type, Object payload) {
         try {
             String json = objectMapper.writeValueAsString(Map.of(
-                    "type", type,
+                    "type", type.getType(),
                     "payload", payload,
                     "timestamp", Instant.now().toString()));
+            log.info("Notify session: " + sessionId + " payload: " + payload.toString());
             notifySessionClients(sessionId, json);
         } catch (Exception e) {
             e.printStackTrace();

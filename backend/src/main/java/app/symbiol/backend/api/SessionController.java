@@ -16,6 +16,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartFile;
 
 import app.symbiol.backend.dto.ImageUploadResponseDto;
+import app.symbiol.backend.dto.NotificationMesageType;
 import app.symbiol.backend.dto.SessionDto;
 import app.symbiol.backend.dto.SessionIdDto;
 import app.symbiol.backend.dto.UploadSessionDto;
@@ -212,7 +213,7 @@ public class SessionController {
             String fileName = imageStorageService.save(file.getBytes(), file.getContentType());
             imageUploadService.SaveImageReferenceForUploadKey(fileName, uploadKey);
             String sessionId = sessionService.findSessionForUploadSessionKey(uploadKey).getPublicId();
-            notificationService.notifySessionClients(sessionId, "image_uploaded", fileName);
+            notificationService.notifySessionClients(sessionId, NotificationMesageType.IMAGE_UPLOADED, fileName);
 
             return
                 ResponseEntity.ok(new ImageUploadResponseDto("Image uploaded"));
