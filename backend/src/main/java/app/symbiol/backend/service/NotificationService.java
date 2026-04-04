@@ -53,6 +53,12 @@ public class NotificationService {
         emitters.removeAll(deadEmitters);
     }
 
+    // {
+    //    "type": "event_type",
+    //    "payload": { data },
+    //    "timestamp": "YYY-MM-DDT23:00:00Z"
+    // }
+
     public void notifySessionClients(String sessionId, String type, Object payload) {
         try {
             String json = objectMapper.writeValueAsString(Map.of(
