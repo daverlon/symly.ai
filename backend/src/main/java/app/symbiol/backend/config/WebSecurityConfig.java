@@ -35,6 +35,17 @@ public class WebSecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/auth/**", "/accounts").permitAll() // login/register
                 .requestMatchers("/u/**").permitAll()                 // public upload route
+
+
+
+                /*
+                        INSECURE IMPLEMENTATION OF SSE STREAM
+                        TODO: HTTPONLY COOKIE OR TEMPORARY TOKEN EXCHANGE 
+                */
+                .requestMatchers("/stream/**").permitAll()                 // public upload route
+
+
+
                 .anyRequest().authenticated()                         // everything else requires JWT
             )
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)

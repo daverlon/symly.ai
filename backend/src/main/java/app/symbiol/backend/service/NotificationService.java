@@ -25,6 +25,8 @@ public class NotificationService {
         emitter.onCompletion(() -> removeEmitter(sessionId, emitter));
         emitter.onTimeout(() -> removeEmitter(sessionId, emitter));
         emitter.onError(e -> removeEmitter(sessionId, emitter));
+
+        notifySessionClients(sessionId, "Hello " + sessionId);
         return emitter;
     }
 

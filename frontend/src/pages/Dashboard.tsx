@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { getSessionData, verifyToken } from "../api/accountsApi"
+import { getSessionData, getSessionEventSource, verifyToken } from "../api/accountsApi"
 import { createUploadSessionKey, createSession, deleteAllSessions, deleteSession, listSessions, type SessionId } from "../api/sessionsApi"
 import { QRCodeSVG } from "qrcode.react"
 import { Menu, Plus, X } from "lucide-react"
 
 export default function Dashboard() {
+
 
 
     const navigate = useNavigate();
@@ -18,6 +19,8 @@ export default function Dashboard() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
     const { sessionId } = useParams<{ sessionId: string }>();
+
+    const [sse, setsse] = useState<EventSource | null>();
 
     const activeSessionId = sessionId ?? null;
 
@@ -172,6 +175,48 @@ export default function Dashboard() {
             });
     }, []);
 
+
+    useEffect(() => {
+        if (!activeSessionId) {
+            setsse(null);
+            return;
+        }
+
+        // close previous sse
+        if (sse) {
+            sse.close();
+        }
+
+        const newSse = getSessionEventSource(activeSessionId)!;
+        setsse(newSse);
+
+        const handleOpen = () => {
+            console.log("SSE connected successfully");
+        };
+
+        const handleMessage = (event: MessageEvent) => {
+            console.log("SSE message received:", event.data);
+        };
+
+        const handleError = (event: Event) => {
+            console.error("SSE error:", event);
+            if (newSse.readyState === EventSource.CLOSED) {
+                console.log("SSE connection closed");
+            } else {
+                alert("SSE connection error");
+            }
+        };
+
+        newSse.addEventListener("open", handleOpen);
+        newSse.addEventListener("message", handleMessage);
+        newSse.addEventListener("error", handleError);
+        return () => {
+            newSse.removeEventListener("open", handleOpen);
+            newSse.removeEventListener("message", handleMessage);
+            newSse.removeEventListener("error", handleError);
+            newSse.close();
+        }
+    }, [activeSessionId]);
 
     useEffect(() => {
         const canvas = canvasRef.current;

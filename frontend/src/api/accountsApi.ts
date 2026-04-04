@@ -101,3 +101,14 @@ export async function getUploadSessionData(urlKey: string): Promise<UploadSessio
     }
     return await response.json();
 }
+
+export function getSessionEventSource(publicSessionId: string | null): EventSource | null {
+    const u = `${API_BASE}/stream/${publicSessionId}`;
+    console.log("Setting sse for " + u)
+    if (publicSessionId) { 
+        return new EventSource(u);
+    }
+    else {
+        return null;
+    }
+}
