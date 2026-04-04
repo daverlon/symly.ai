@@ -4,7 +4,8 @@ import { getSessionData, getSessionEventSource, verifyToken } from "../api/accou
 import { createUploadSessionKey, createSession, deleteAllSessions, deleteSession, listSessions, type SessionId } from "../api/sessionsApi"
 import { QRCodeSVG } from "qrcode.react"
 import { Menu, Plus, X } from "lucide-react"
-import { fetchSessionImages, fetchSingleSessionImage, type SessionImage } from "../api/imageApi"
+import { fetchSessionImages, type SessionImage } from "../api/imageApi"
+import ImagePanel from "./ImagePanel"
 
 export default function Dashboard() {
 
@@ -44,7 +45,7 @@ export default function Dashboard() {
             if (lastRequestedSession.current !== sessionId) return; // Ignore outdated request
 
             setLoading(false);
-            navigate(`/dashboard/session/${sessionId}`);
+            navigate(`/dashboard/s/${sessionId}`);
         } catch (e) {
             if (lastRequestedSession.current !== sessionId) return;
             // alert("Failed to fetch session.");
@@ -177,29 +178,9 @@ export default function Dashboard() {
                     continue;
                 };
                 console.log(`\t[${i}] ${image.name}`);
+                console.log(`\t[${i}] ${image.uploadDate}`);
+                console.log(`\t[${i}] ${image.url}`);
             }
-
-        } catch (e) {
-            const msg = e instanceof Error ? e.message : "Failed to load sessions.";
-            alert(msg);
-        }
-    }
-
-    async function loadSingleImage(imageName: string, sessionId: string | null) {
-        const token = localStorage.getItem("jwt");
-
-        // if no session just cleanup and return
-        if (!sessionId || !token) {
-            setSessionImages([]);
-            return;
-        }
-
-        // find images
-        try {
-            const image = await fetchSingleSessionImage(token, sessionId, imageName);
-            setSessionImages(prev => [...prev, image]);
-
-            console.log(`Loaded 1 new image: ${image.name}`);
 
         } catch (e) {
             const msg = e instanceof Error ? e.message : "Failed to load sessions.";
@@ -256,8 +237,9 @@ export default function Dashboard() {
         const handleMessage = (event: MessageEvent) => {
             const data = JSON.parse(event.data)
             if (data.type == "image_uploaded") {
-                const imageName = data.payload;
-                loadSingleImage(imageName, activeSessionId);
+                const x = JSON.parse(data.payload);
+                console.log(x);
+                setSessionImages(prev => [...prev, x]);
             }
             console.log("SSE message received:", event.data);
         };
@@ -499,6 +481,10 @@ export default function Dashboard() {
                         </div>
                     </div>
                 )}
+                <ImagePanel
+                    images={sessionImages}
+                    onSelect={(img) => console.log("Clicked image", img.name)}
+                />
             </main>
 
             {qrOpen && phoneToken && (

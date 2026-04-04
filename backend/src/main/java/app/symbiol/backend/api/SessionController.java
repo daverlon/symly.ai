@@ -6,7 +6,9 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.security.core.Authentication;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -188,10 +190,13 @@ public class SessionController {
 
         List<SessionImageDto> imageDtos = images.stream()
             .map( i -> {
+
+                String url = String.format("http://localhost:8080/sessions/%s/images/%s", publicSessionId, i.getFileName());
+
                 SessionImageDto dto = new SessionImageDto();
                 dto.setName(i.getFileName());
                 dto.setUploadDate(i.getUploadDate());
-                dto.setImage(imageStorageService.load(i.getFileName()));
+                dto.setUrl(url);
                 return dto;
             })
             .collect(Collectors.toList());
@@ -200,20 +205,23 @@ public class SessionController {
         return ResponseEntity.ok(imageDtos);
     }
 
-     @GetMapping("/sessions/{publicSessionId}/images/{imageName}")
-    public ResponseEntity<SessionImageDto> getSessionImage(
-        @PathVariable String publicSessionId,
+    @GetMapping("/sessions/{publicSessionId}/images/{imageName}")
+    public ResponseEntity<byte[]> getSessionImage(
         @PathVariable String imageName,
         Authentication auth
     ) {
         // already have image key (file name)
 
-        SessionImageDto dto = new SessionImageDto();
-        dto.setImage(imageStorageService.load(imageName));
-        dto.setName(imageName);
-        dto.setUploadDate(imageUploadService.getImageDateForFileName(imageName));
+        // SessionImageDto dto = new SessionImageDto();
+        // dto.setImage(imageStorageService.load(imageName));
+        // dto.setName(imageName);
+        byte[] image = imageStorageService.load(imageName);
 
-        return ResponseEntity.ok(dto);
+
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + imageName + "\"")
+            .contentType(MediaType.IMAGE_PNG)
+            .body(image);
     }
     
 
@@ -256,9 +264,10 @@ public class SessionController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
             String fileName = imageStorageService.save(file.getBytes(), file.getContentType());
-            imageUploadService.SaveImageReferenceForUploadKey(fileName, uploadKey);
+            SessionImageDto dto = imageUploadService.SaveImageReferenceForUploadKey(fileName, uploadKey);
             String sessionId = sessionService.findSessionForUploadSessionKey(uploadKey).getPublicId();
-            notificationService.notifySessionClients(sessionId, NotificationMesageType.IMAGE_UPLOADED, fileName);
+
+            notificationService.notifySessionClients(sessionId, NotificationMesageType.IMAGE_UPLOADED, dto);
 
             return
                 ResponseEntity.ok(new ImageUploadResponseDto("Image uploaded"));

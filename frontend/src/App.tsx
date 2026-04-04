@@ -18,7 +18,7 @@ function App() {
       <Route path="/login" element = {<Login />} />
       <Route path="/signup" element = {<SignUp />} />
       <Route path="/dashboard" element = {<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-      <Route path="/dashboard/session/:sessionId" element = {<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/dashboard/s/:sessionId" element = {<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/u/:uploadKey" element = {<UploadSession />} />
 
       <Route path="*" element={<InvalidRoute />} />

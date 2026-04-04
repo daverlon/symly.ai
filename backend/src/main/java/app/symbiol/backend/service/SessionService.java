@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import app.symbiol.backend.dto.UploadSessionKeyDto;
 import app.symbiol.backend.exception.AccountNotFoundException;
@@ -18,12 +19,10 @@ import app.symbiol.backend.model.UploadSessionKey;
 import app.symbiol.backend.repository.AccountRepository;
 import app.symbiol.backend.repository.SessionRepository;
 import app.symbiol.backend.repository.UploadKeyRepository;
-import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
-@Transactional
 public class SessionService {
 
     private final AccountRepository accountRepository;
@@ -43,6 +42,7 @@ public class SessionService {
         this.uploadKeyRepository = uploadKeyRepository;
     }
 
+    @Transactional
     public Session createSessionForUsername(String username) {
         Account account = accountRepository.findByUsername(username)
             .orElseThrow(() -> new AccountNotFoundException(username));
@@ -50,24 +50,28 @@ public class SessionService {
         return sessionRepository.save(session);
     }
 
+    @Transactional(readOnly = true)
     public List<Session> listSessionsForUsername(String username) {
         Account account = accountRepository.findByUsername(username)
             .orElseThrow(() -> new AccountNotFoundException(username));
         return sessionRepository.findByAccount(account);
     }
 
+    @Transactional(readOnly = true)
     public Optional<Session> findSessionForUsername(String publicSessionId, String username) {
         Account account = accountRepository.findByUsername(username)
             .orElseThrow(() -> new AccountNotFoundException(username));
         return sessionRepository.findByPublicIdAndAccount(publicSessionId, account);
     }
 
+    @Transactional
     public void deleteSessionForUsername(String publicSessionId, String username) {
         Session session = findSessionForUsername(publicSessionId, username)
             .orElseThrow(() -> new AccountNotFoundException(username));
         sessionRepository.delete(session);
     }
 
+    @Transactional
     public void deleteAllSessionsForUsername(String username) {
         List<Session> sessions = listSessionsForUsername(username);
         for (int i = 0; i < sessions.size(); i++) {
@@ -77,6 +81,7 @@ public class SessionService {
         sessionRepository.deleteAll(sessions);
     }
 
+    @Transactional
     public UploadSessionKeyDto createUploadSessionKey(String publicId) {
 
         // create the upload session key in the DB, it lasts 1 hour
@@ -100,12 +105,14 @@ public class SessionService {
         return key;
     }
 
+    @Transactional
     public void deleteUploadKey(String publicSessionId) {
         Session s = sessionRepository.findByPublicId(publicSessionId)
             .orElseThrow(() -> new InvalidUploadSessionKeyException(publicSessionId));
         uploadKeyRepository.deleteBySession(s);
     }
 
+    @Transactional(readOnly = true)
     public boolean isUploadSessionKeyValid(String uploadSessionKey) {
         UploadSessionKey key = uploadKeyRepository.findByKey(uploadSessionKey)
             .orElseThrow(() -> new InvalidUploadSessionKeyException(uploadSessionKey));
@@ -115,12 +122,14 @@ public class SessionService {
         return true;
     }
 
+    @Transactional(readOnly = true)
     public Session findSessionForUploadSessionKey(String uploadSessionKey) {
         UploadSessionKey k = uploadKeyRepository.findByKey(uploadSessionKey)
             .orElseThrow(() -> new InvalidUploadSessionKeyException(uploadSessionKey));
         return k.getSession();
     }
 
+    @Transactional(readOnly = true)
     public UploadSessionKey findUploadSessionKey(String uploadKey) {
         return uploadKeyRepository.findByKey(uploadKey)
             .orElseThrow(() -> new InvalidUploadSessionKeyException(uploadKey));

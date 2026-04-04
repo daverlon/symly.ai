@@ -51,6 +51,7 @@ public class Image {
     }
 
     public Instant getUploadDate() {
+
         return this.uploadDate;
     }
 
