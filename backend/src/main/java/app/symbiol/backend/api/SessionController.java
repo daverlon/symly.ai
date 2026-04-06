@@ -265,6 +265,7 @@ public class SessionController {
             }
             String fileName = imageStorageService.save(file.getBytes(), file.getContentType());
             SessionImageDto dto = imageUploadService.SaveImageReferenceForUploadKey(fileName, uploadKey);
+            log.info("Send client: " + dto.toString());
             String sessionId = sessionService.findSessionForUploadSessionKey(uploadKey).getPublicId();
 
             notificationService.notifySessionClients(sessionId, NotificationMesageType.IMAGE_UPLOADED, dto);

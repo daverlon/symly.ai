@@ -37,7 +37,7 @@ export default function ImagePanel({ images, onSelect }: ImagePanelProps) {
             {images.map((img) => (
                 <img
                     key={img.name}
-                    src={urls[img.name] || ""}
+                    src={urls[img.name] ?? null}
                     alt={img.name}
                     className="w-20 h-20 object-cover rounded cursor-pointer border border-slate-300 hover:border-blue-500"
                     onClick={() => onSelect?.(img)}

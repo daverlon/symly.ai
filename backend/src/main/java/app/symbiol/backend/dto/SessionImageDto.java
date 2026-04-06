@@ -16,6 +16,6 @@ public class SessionImageDto {
     public void setUrl(String url) { this.url = url; }
 
     public String getName() { return this.name; }
-    public Instant getUploadDtae() { return this.uploadDate; }
+    public Instant getUploadDate() { return this.uploadDate; }
     public String getUrl() { return this.url; }
 }

@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -18,6 +19,8 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class NotificationService {
 
+    private static final long SSE_TIMEOUT_MS = /*60_000L*/0L;
+
     public NotificationService(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
@@ -27,15 +30,24 @@ public class NotificationService {
     private ObjectMapper objectMapper;
 
     public SseEmitter registerClient(String sessionId) {
-        SseEmitter emitter = new SseEmitter(0L);
+        SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         sessionEmitters.computeIfAbsent(sessionId, k -> new CopyOnWriteArrayList<>()).add(emitter);
 
         emitter.onCompletion(() -> removeEmitter(sessionId, emitter));
-        emitter.onTimeout(() -> removeEmitter(sessionId, emitter));
+        emitter.onTimeout(() -> {
+            emitter.complete();
+            removeEmitter(sessionId, emitter);
+        });
         emitter.onError(e -> removeEmitter(sessionId, emitter));
 
         notifySessionClients(sessionId, NotificationMesageType.CONNECTED, sessionId);
         return emitter;
+    }
+
+    @PreDestroy
+    public void closeAllEmitters() {
+        sessionEmitters.values().forEach(list -> list.forEach(SseEmitter::complete));
+        sessionEmitters.clear();
     }
 
     private void removeEmitter(String sessionId, SseEmitter emitter) {

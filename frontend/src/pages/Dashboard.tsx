@@ -236,9 +236,10 @@ export default function Dashboard() {
 
         const handleMessage = (event: MessageEvent) => {
             const data = JSON.parse(event.data)
+            console.log(data);
             if (data.type == "image_uploaded") {
-                const x = JSON.parse(data.payload);
-                console.log(x);
+                const x = data.payload as SessionImage;
+                // console.log("paylaod: " + x);
                 setSessionImages(prev => [...prev, x]);
             }
             console.log("SSE message received:", event.data);
