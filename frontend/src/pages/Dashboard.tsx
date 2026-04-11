@@ -6,12 +6,16 @@ import { QRCodeSVG } from "qrcode.react"
 import { Menu, Plus, X } from "lucide-react"
 import { fetchSessionImages, type SessionImage } from "../api/imageApi"
 import ImagePanel from "./ImagePanel"
-import { Images, EyeOff } from "lucide-react";
+import { Images, EyeOff, Camera, LogOut } from "lucide-react";
+
 
 export default function Dashboard() {
 
     const navigate = useNavigate();
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+    const deskImageRefs = useRef<Record<string, HTMLImageElement | null>>({});
+
     const [username, setUsername] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [sessions, setSessions] = useState<SessionId[]>([]);
@@ -388,7 +392,10 @@ export default function Dashboard() {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === "Escape") {
-                setPreviewImage(null);
+                if (previewImage)
+                    setPreviewImage(null);
+                else
+                    setImagePanelOpen(false);
             }
         };
 
@@ -397,7 +404,7 @@ export default function Dashboard() {
         return () => {
             window.removeEventListener("keydown", handleKeyDown);
         };
-    }, []);
+    }, [previewImage]);
 
     useEffect(() => {
         sessionImages.forEach(hydrateImage);
@@ -437,15 +444,17 @@ export default function Dashboard() {
                     <button
                         onClick={handleConnectPhone}
                         disabled={activeSessionId == null}
-                        className="bg-slate-200 rounded-sm px-5 py-1.5 text-center self-start text-slate-900 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-9 h-9 rounded-md flex items-center justify-center hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Camera"
                     >
-                        Connect phone
+                        <Camera size={18} className="text-slate-700" />
                     </button>
                     <button
                         onClick={handleSignOut}
-                        className="bg-blue-300 rounded-sm px-5 py-1.5 text-center self-start"
+                        className="w-9 h-9 rounded-md flex items-center justify-center hover:bg-slate-200"
+                        aria-label="Sign out"
                     >
-                        Sign out
+                        <LogOut size={18} className="text-slate-700" />
                     </button>
                 </div>
             </header>
@@ -547,19 +556,28 @@ export default function Dashboard() {
                 )}
 
                 {deskImages.length > 0 && (
-                <div className="absolute inset-0 overflow-x-auto overflow-y-hidden">
-                    <div className="flex h-full items-center gap-6 px-6">
+                    <div className="absolute inset-0 overflow-x-auto overflow-y-hidden">
+                        <div className="flex h-full items-center gap-6 w-max">
+                            <div className="shrink-0 w-[40vw]" />
                             {deskImages.map((img) => {
                                 const src = blobUrls[img.name];
-
                                 return (
                                     <img
                                         key={img.name}
+                                        ref={(el) => { deskImageRefs.current[img.name] = el; }}
                                         src={src || ""}
                                         className="h-[80vh] w-auto object-contain flex-shrink-0 border-5 border-transparent hover:border-blue-500 transition-colors"
+                                        onClick={(e) => {
+                                            e.currentTarget.scrollIntoView({
+                                                behavior: "smooth",
+                                                block: "nearest",
+                                                inline: "center",
+                                            });
+                                        }}
                                     />
                                 );
                             })}
+                            <div className="shrink-0 w-[40vw]" />
                         </div>
                     </div>
                 )}
@@ -575,9 +593,17 @@ export default function Dashboard() {
                             }}
                             onAddToDesk={(img) => {
                                 setDeskImages((prev) => {
-                                    if (prev.find((x) => x.name === img.name)) return prev; // prevent duplicates
+                                    if (prev.find((x) => x.name === img.name)) return prev;
                                     return [...prev, img];
                                 });
+                                // scroll to it after render
+                                setTimeout(() => {
+                                    deskImageRefs.current[img.name]?.scrollIntoView({
+                                        behavior: "smooth",
+                                        block: "nearest",
+                                        inline: "center",
+                                    });
+                                }, 0);
                             }}
                         />
                     </div>
