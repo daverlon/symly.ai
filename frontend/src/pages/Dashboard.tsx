@@ -599,7 +599,7 @@ export default function Dashboard() {
 
                 {deskImages.length > 0 && (
                     <div ref={deskScrollRef} className="absolute inset-0 overflow-x-auto overflow-y-hidden">
-                        <div className="flex h-full items-center gap-6 w-max">
+                        <div className="flex h-full items-center gap-10 w-max">
                             <div className="shrink-0 w-[40vw]" />
 
                             {deskImages.map((img) => {
