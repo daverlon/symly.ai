@@ -6,7 +6,7 @@ import { QRCodeSVG } from "qrcode.react"
 import { Menu, Plus, X } from "lucide-react"
 import { fetchSessionImages, type SessionImage } from "../api/imageApi"
 import ImagePanel from "./ImagePanel"
-import { Images, EyeOff, Camera, LogOut } from "lucide-react";
+import { Images, Sparkles, Camera, LogOut } from "lucide-react";
 
 
 export default function Dashboard() {
@@ -42,6 +42,8 @@ export default function Dashboard() {
     const [blobUrls, setBlobUrls] = useState<Record<string, string>>({});
 
     const [imagePanelOpen, setImagePanelOpen] = useState<boolean>(false);
+
+    const [selectedDeskImage, setSelectedDeskImage] = useState<string | null>(null);
 
     async function changeSession(sessionId: string | null) {
         lastRequestedSession.current = sessionId;
@@ -396,17 +398,16 @@ export default function Dashboard() {
             if (e.key === "Escape") {
                 if (previewImage)
                     setPreviewImage(null);
-                else
+                else if (imagePanelOpen)
                     setImagePanelOpen(false);
+                else if (selectedDeskImage)
+                    setSelectedDeskImage(null);
             }
         };
 
         window.addEventListener("keydown", handleKeyDown);
-
-        return () => {
-            window.removeEventListener("keydown", handleKeyDown);
-        };
-    }, [previewImage]);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [previewImage, imagePanelOpen, selectedDeskImage]);
 
     useEffect(() => {
         sessionImages.forEach(hydrateImage);
@@ -598,51 +599,80 @@ export default function Dashboard() {
                 )}
 
                 {deskImages.length > 0 && (
-                    <div ref={deskScrollRef} className="absolute inset-0 overflow-x-auto overflow-y-hidden">
+                    <div
+                        ref={deskScrollRef}
+                        className="absolute inset-0 overflow-x-auto overflow-y-hidden"
+                        onClick={() => setSelectedDeskImage(null)}
+                    >
                         <div className="flex h-full items-center gap-10 w-max">
                             <div className="shrink-0 w-[40vw]" />
 
                             {deskImages.map((img) => {
                                 const src = blobUrls[img.name];
+                                const isSelected = selectedDeskImage === img.name;
+
                                 return (
                                     <div
                                         key={img.name}
-                                        className="relative group flex-shrink-0"  // ← Key wrapper
+                                        className="relative group flex-shrink-0"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setImagePanelOpen(false);
+                                            if (isSelected) return;
+                                            setSelectedDeskImage(img.name);
+                                            deskImageRefs.current[img.name]?.scrollIntoView({
+                                                behavior: "smooth",
+                                                block: "nearest",
+                                                inline: "center",
+                                            });
+                                        }}
                                     >
-                                        <img
-                                            ref={(el) => { deskImageRefs.current[img.name] = el; }}
-                                            src={src || ""}
-                                            className="h-[80vh] w-auto object-contain border-5 border-transparent hover:border-blue-500 transition-colors"
-                                            onClick={(e) => {
-                                                e.currentTarget.scrollIntoView({
-                                                    behavior: "smooth",
-                                                    block: "nearest",
-                                                    inline: "center",
-                                                });
-                                            }}
-                                        />
-
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation(); // Prevent triggering image scroll
-                                                if (window.confirm(`Remove "${img.name}" from desk?`)) {
-                                                    setDeskImages(prev => prev.filter(x => x.name !== img.name));
-                                                }
-                                            }}
-                                            className="absolute top-4 right-4 
-                                       opacity-0 group-hover:opacity-100 
-                                       transition-all duration-200
-                                       w-9 h-9 rounded-full 
-                                       bg-white/90 hover:bg-red-500 
-                                       text-slate-700 hover:text-white 
-                                       flex items-center justify-center
-                                       shadow-md hover:shadow-lg
-                                       border border-slate-200 hover:border-red-400"
-                                            aria-label={`Remove ${img.name} from desk`}
+                                        <div className={`relative transition-all duration-200 rounded-lg overflow-hidden
+                            ${isSelected
+    ? 'outline outline-2 outline-blue-400 shadow-xl'
+    : 'outline outline-1 outline-transparent hover:outline-slate-300 hover:shadow-md'
+}`}
                                         >
-                                            <X size={18} strokeWidth={3} />
-                                        </button>
+                                            <img
+                                                ref={(el) => { deskImageRefs.current[img.name] = el; }}
+                                                src={src || ""}
+                                                className="h-[80vh] w-auto object-contain block"
+                                                alt={img.name}
+                                            />
+                                        </div>
+
+                                        {isSelected && (
+                                            <div
+                                                className="absolute -top-12 left-1/2 -translate-x-1/2 
+        bg-white rounded-xl shadow-xl border border-slate-200 
+        flex items-center gap-0.5 p-1 z-20"
+        
+                                            >
+                                                <button
+                                                    className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 rounded-lg text-slate-600 hover:text-slate-900 transition-all active:scale-95"
+                                                    title="Chat with AI"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <Sparkles size={16} />
+                                                </button>
+
+                                                <div className="w-px h-5 bg-slate-200 mx-0.5" />
+
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setDeskImages(prev => prev.filter(x => x.name !== img.name));
+                                                        setSelectedDeskImage(null);
+                                                    }}
+                                                    className="w-8 h-8 flex items-center justify-center hover:bg-red-500 hover:text-white 
+            text-slate-700 rounded-lg transition-all active:scale-95"
+                                                    title="Remove from desk"
+                                                >
+                                                    <X size={16} strokeWidth={2.5} />
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
