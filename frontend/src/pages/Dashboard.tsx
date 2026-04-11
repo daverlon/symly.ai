@@ -16,6 +16,8 @@ export default function Dashboard() {
 
     const deskImageRefs = useRef<Record<string, HTMLImageElement | null>>({});
 
+    const deskScrollRef = useRef<HTMLDivElement | null>(null);
+
     const [username, setUsername] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [sessions, setSessions] = useState<SessionId[]>([]);
@@ -416,6 +418,46 @@ export default function Dashboard() {
         };
     }, []);
 
+    useEffect(() => {
+        const el = deskScrollRef.current;
+        if (!el) return;
+
+        let isMiddleDragging = false;
+        let startX = 0;
+        let scrollLeft = 0;
+
+        const onMouseDown = (e: MouseEvent) => {
+            if (e.button !== 1) return;
+            e.preventDefault();
+            isMiddleDragging = true;
+            startX = e.pageX;
+            scrollLeft = el.scrollLeft;
+            el.style.cursor = "grabbing";
+        };
+
+        const onMouseMove = (e: MouseEvent) => {
+            if (!isMiddleDragging) return;
+            const dx = e.pageX - startX;
+            el.scrollLeft = scrollLeft - dx;
+        };
+
+        const onMouseUp = (e: MouseEvent) => {
+            if (e.button !== 1) return;
+            isMiddleDragging = false;
+            el.style.cursor = "";
+        };
+
+        el.addEventListener("mousedown", onMouseDown);
+        window.addEventListener("mousemove", onMouseMove);
+        window.addEventListener("mouseup", onMouseUp);
+
+        return () => {
+            el.removeEventListener("mousedown", onMouseDown);
+            window.removeEventListener("mousemove", onMouseMove);
+            window.removeEventListener("mouseup", onMouseUp);
+        };
+    }, [deskImages]);
+
     return (
         <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
             <header className="h-14 flex items-center justify-between px-6 border-b border-slate-200 bg-white/70">
@@ -556,7 +598,8 @@ export default function Dashboard() {
                 )}
 
                 {deskImages.length > 0 && (
-                    <div className="absolute inset-0 overflow-x-auto overflow-y-hidden">
+                    <div ref={deskScrollRef} 
+                    className="absolute inset-0 overflow-x-auto overflow-y-hidden">
                         <div className="flex h-full items-center gap-6 w-max">
                             <div className="shrink-0 w-[40vw]" />
                             {deskImages.map((img) => {
