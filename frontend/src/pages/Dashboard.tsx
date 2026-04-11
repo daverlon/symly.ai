@@ -652,14 +652,21 @@ export default function Dashboard() {
                     </div>
                 )}
 
-                {imagePanelOpen && (
-                    <div className="fixed top-14 left-0 right-0 z-20" onClick={(e) => e.stopPropagation()}>
-
+                <div
+                    className="fixed top-14 left-0 right-0 z-20 overflow-hidden"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div
+                        className={`
+            bg-white border-b border-slate-200 
+            transition-transform duration-300 ease-out
+            ${imagePanelOpen ? 'translate-y-0' : '-translate-y-full'}
+        `}
+                    >
                         <ImagePanel
                             images={sessionImages}
                             onSelect={(blobUrl) => {
-                                if (!previewImage)
-                                    setPreviewImage(blobUrl);
+                                if (!previewImage) setPreviewImage(blobUrl);
                             }}
                             onAddToDesk={(img) => {
                                 setDeskImages((prev) => {
@@ -677,7 +684,7 @@ export default function Dashboard() {
                             }}
                         />
                     </div>
-                )}
+                </div>
             </main>
 
             {qrOpen && phoneToken && (
