@@ -598,28 +598,55 @@ export default function Dashboard() {
                 )}
 
                 {deskImages.length > 0 && (
-                    <div ref={deskScrollRef} 
-                    className="absolute inset-0 overflow-x-auto overflow-y-hidden">
+                    <div ref={deskScrollRef} className="absolute inset-0 overflow-x-auto overflow-y-hidden">
                         <div className="flex h-full items-center gap-6 w-max">
                             <div className="shrink-0 w-[40vw]" />
+
                             {deskImages.map((img) => {
                                 const src = blobUrls[img.name];
                                 return (
-                                    <img
+                                    <div
                                         key={img.name}
-                                        ref={(el) => { deskImageRefs.current[img.name] = el; }}
-                                        src={src || ""}
-                                        className="h-[80vh] w-auto object-contain flex-shrink-0 border-5 border-transparent hover:border-blue-500 transition-colors"
-                                        onClick={(e) => {
-                                            e.currentTarget.scrollIntoView({
-                                                behavior: "smooth",
-                                                block: "nearest",
-                                                inline: "center",
-                                            });
-                                        }}
-                                    />
+                                        className="relative group flex-shrink-0"  // ← Key wrapper
+                                    >
+                                        <img
+                                            ref={(el) => { deskImageRefs.current[img.name] = el; }}
+                                            src={src || ""}
+                                            className="h-[80vh] w-auto object-contain border-5 border-transparent hover:border-blue-500 transition-colors"
+                                            onClick={(e) => {
+                                                e.currentTarget.scrollIntoView({
+                                                    behavior: "smooth",
+                                                    block: "nearest",
+                                                    inline: "center",
+                                                });
+                                            }}
+                                        />
+
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation(); // Prevent triggering image scroll
+                                                if (window.confirm(`Remove "${img.name}" from desk?`)) {
+                                                    setDeskImages(prev => prev.filter(x => x.name !== img.name));
+                                                }
+                                            }}
+                                            className="absolute top-4 right-4 
+                                       opacity-0 group-hover:opacity-100 
+                                       transition-all duration-200
+                                       w-9 h-9 rounded-full 
+                                       bg-white/90 hover:bg-red-500 
+                                       text-slate-700 hover:text-white 
+                                       flex items-center justify-center
+                                       shadow-md hover:shadow-lg
+                                       border border-slate-200 hover:border-red-400"
+                                            aria-label={`Remove ${img.name} from desk`}
+                                        >
+                                            <X size={18} strokeWidth={3} />
+                                        </button>
+                                    </div>
                                 );
                             })}
+
                             <div className="shrink-0 w-[40vw]" />
                         </div>
                     </div>
