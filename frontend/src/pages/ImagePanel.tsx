@@ -3,7 +3,7 @@ import type { SessionImage } from "../api/imageApi";
 
 interface ImagePanelProps {
     images: SessionImage[];
-    onSelect: (image: SessionImage) => void;
+    onSelect: (blobUrl: string) => void;
 }
 
 export default function ImagePanel({ images, onSelect }: ImagePanelProps) {
@@ -40,7 +40,7 @@ export default function ImagePanel({ images, onSelect }: ImagePanelProps) {
                     src={urls[img.name] ?? null}
                     alt={img.name}
                     className="w-20 h-20 object-cover rounded cursor-pointer border border-slate-300 hover:border-blue-500"
-                    onClick={() => onSelect?.(img)}
+                    onClick={() => onSelect?.(urls[img.name])}
                 />
             ))}
         </div>

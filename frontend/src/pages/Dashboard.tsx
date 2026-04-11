@@ -6,6 +6,7 @@ import { QRCodeSVG } from "qrcode.react"
 import { Menu, Plus, X } from "lucide-react"
 import { fetchSessionImages, type SessionImage } from "../api/imageApi"
 import ImagePanel from "./ImagePanel"
+import { preview } from "vite"
 
 export default function Dashboard() {
 
@@ -27,6 +28,8 @@ export default function Dashboard() {
     const lastRequestedSession = useRef<string | null>(null);
 
     const [sessionImages, setSessionImages] = useState<SessionImage[]>([]);
+
+    const [previewImage, setPreviewImage] = useState<string | null>(null); // uses the blobUrl
 
     async function changeSession(sessionId: string | null) {
         lastRequestedSession.current = sessionId;
@@ -355,6 +358,20 @@ export default function Dashboard() {
         };
     }, [loading]);
 
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                setPreviewImage(null);
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown);
+        };
+    }, []);
+
     return (
         <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
             <header className="h-14 flex items-center justify-between px-6 border-b border-slate-200 bg-white/70">
@@ -484,7 +501,10 @@ export default function Dashboard() {
                 )}
                 <ImagePanel
                     images={sessionImages}
-                    onSelect={(img) => console.log("Clicked image", img.name)}
+                    onSelect={(blobUrl) => {
+                        if (!previewImage)
+                            setPreviewImage(blobUrl);
+                    }}
                 />
             </main>
 
@@ -496,12 +516,6 @@ export default function Dashboard() {
                                 <div className="text-sm font-semibold text-slate-900">Connect phone</div>
                                 <div className="text-xs text-slate-600">Scan to open the upload page</div>
                             </div>
-                            <button
-                                onClick={() => setQrOpen(false)}
-                                className="rounded-lg px-2 py-1 text-sm text-slate-600 hover:bg-slate-100"
-                            >
-                                Close
-                            </button>
                         </div>
 
                         <div className="mt-5 flex items-center justify-center">
@@ -516,6 +530,22 @@ export default function Dashboard() {
                         >
                             {mobileUploadUrl}
                         </a>
+                    </div>
+                </div>
+            )}
+
+            {previewImage && (
+                <div className="fixed inset-0 z-50 bg-slate-900/70 flex items-center justify-center p-6"
+                    onClick={() => setPreviewImage(null)} 
+                >
+                    <div className="relative max-w-5xl w-full flex items-center justify-center"
+                    >
+                        {/* Image */}
+                        <img
+                            src={previewImage}
+                            alt="Preview"
+                            className="max-h-[90vh] max-w-full rounded-xl shadow-2xl object-contain"
+                        />
                     </div>
                 </div>
             )}
