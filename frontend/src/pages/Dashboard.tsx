@@ -6,7 +6,7 @@ import { QRCodeSVG } from "qrcode.react"
 import { Menu, Plus, X } from "lucide-react"
 import { fetchSessionImages, type SessionImage } from "../api/imageApi"
 import ImagePanel from "./ImagePanel"
-import { preview } from "vite"
+import { Images, EyeOff } from "lucide-react";
 
 export default function Dashboard() {
 
@@ -30,6 +30,12 @@ export default function Dashboard() {
     const [sessionImages, setSessionImages] = useState<SessionImage[]>([]);
 
     const [previewImage, setPreviewImage] = useState<string | null>(null); // uses the blobUrl
+
+    const [deskImages, setDeskImages] = useState<SessionImage[]>([]);
+
+    const [blobUrls, setBlobUrls] = useState<Record<string, string>>({});
+
+    const [imagePanelOpen, setImagePanelOpen] = useState<boolean>(false);
 
     async function changeSession(sessionId: string | null) {
         lastRequestedSession.current = sessionId;
@@ -189,6 +195,27 @@ export default function Dashboard() {
             const msg = e instanceof Error ? e.message : "Failed to load sessions.";
             alert(msg);
         }
+    }
+
+    async function hydrateImage(img: SessionImage) {
+        if (blobUrls[img.name]) return; // already loaded
+
+        const token = localStorage.getItem("jwt");
+        if (!token) return;
+
+        const res = await fetch(img.url, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!res.ok) return;
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+
+        setBlobUrls(prev => ({
+            ...prev,
+            [img.name]: url
+        }));
     }
 
     useEffect(() => {
@@ -372,6 +399,16 @@ export default function Dashboard() {
         };
     }, []);
 
+    useEffect(() => {
+        sessionImages.forEach(hydrateImage);
+    }, [sessionImages]);
+
+    useEffect(() => {
+        return () => {
+            Object.values(blobUrls).forEach(URL.revokeObjectURL);
+        };
+    }, []);
+
     return (
         <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
             <header className="h-14 flex items-center justify-between px-6 border-b border-slate-200 bg-white/70">
@@ -384,7 +421,17 @@ export default function Dashboard() {
                     >
                         <Menu size={18} className="text-slate-700" />
                     </button>
-                    <div className="text-sm text-slate-600 cursor-pointer" onClick={() => changeSession(null) }>symly.ai</div>
+                    <div className="text-sm text-slate-600 cursor-pointer" onClick={() => changeSession(null)}>symly.ai</div>
+                    <button
+                        onClick={() => setImagePanelOpen(v => !v)}
+                        className="relative w-9 h-9 rounded-md flex items-center justify-center hover:bg-slate-200"
+                    >
+                        <Images size={18} className="text-slate-700" />
+
+                        {!imagePanelOpen && (
+                            <div className="absolute bottom-1 right-1 w-2 h-2 bg-slate-400 rounded-full" />
+                        )}
+                    </button>
                 </div>
                 <div className="flex items-center gap-4">
                     <button
@@ -411,9 +458,8 @@ export default function Dashboard() {
             )}
 
             <aside
-                className={`fixed left-0 top-14 z-40 w-72 h-[calc(100vh-3.5rem)] bg-white/95 backdrop-blur border-r border-slate-200 transition-transform duration-200 ${
-                    sidebarOpen ? "translate-x-0" : "-translate-x-full"
-                }`}
+                className={`fixed left-0 top-14 z-40 w-72 h-[calc(100vh-3.5rem)] bg-white/95 backdrop-blur border-r border-slate-200 transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+                    }`}
                 aria-label="Sessions sidebar"
             >
                 <div className="h-full flex flex-col">
@@ -431,11 +477,10 @@ export default function Dashboard() {
                         {sessions.map((s) => (
                             <div
                                 key={s.id}
-                                className={`group flex items-center justify-between rounded-lg px-2 py-1.5 cursor-pointer ${
-                                    activeSessionId === s.id
-                                        ? "bg-blue-50 text-blue-700"
-                                        : "text-slate-700 hover:bg-slate-50"
-                                }`}
+                                className={`group flex items-center justify-between rounded-lg px-2 py-1.5 cursor-pointer ${activeSessionId === s.id
+                                    ? "bg-blue-50 text-blue-700"
+                                    : "text-slate-700 hover:bg-slate-50"
+                                    }`}
                             >
                                 <button
                                     type="button"
@@ -445,7 +490,7 @@ export default function Dashboard() {
                                     }}
                                     className="flex-1 text-left"
                                 >
-                                {`${s.id} (${new Date(s.creationDate).toLocaleString()})`}                                </button>
+                                    {`${s.id} (${new Date(s.creationDate).toLocaleString()})`}                                </button>
 
                                 <button
                                     type="button"
@@ -475,7 +520,8 @@ export default function Dashboard() {
                 </div>
             </aside>
 
-            <main className="relative flex-1 overflow-hidden">
+            <main className="relative flex-1 overflow-hidden" onClick={() => setImagePanelOpen(false)}>
+
                 <canvas
                     ref={canvasRef}
                     className="absolute inset-0 w-full h-full pointer-events-none"
@@ -499,18 +545,52 @@ export default function Dashboard() {
                         </div>
                     </div>
                 )}
-                <ImagePanel
-                    images={sessionImages}
-                    onSelect={(blobUrl) => {
-                        if (!previewImage)
-                            setPreviewImage(blobUrl);
-                    }}
-                />
+
+                {deskImages.length > 0 && (
+                <div className="absolute inset-0 overflow-x-auto overflow-y-hidden">
+                    <div className="flex h-full items-center gap-6 px-6">
+                            {deskImages.map((img) => {
+                                const src = blobUrls[img.name];
+
+                                return (
+                                    <img
+                                        key={img.name}
+                                        src={src || ""}
+                                        className="h-[80vh] w-auto object-contain flex-shrink-0 border-5 border-transparent hover:border-blue-500 transition-colors"
+                                    />
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {imagePanelOpen && (
+                    <div className="fixed top-14 left-0 right-0 z-20" onClick={(e) => e.stopPropagation()}>
+
+                        <ImagePanel
+                            images={sessionImages}
+                            onSelect={(blobUrl) => {
+                                if (!previewImage)
+                                    setPreviewImage(blobUrl);
+                            }}
+                            onAddToDesk={(img) => {
+                                setDeskImages((prev) => {
+                                    if (prev.find((x) => x.name === img.name)) return prev; // prevent duplicates
+                                    return [...prev, img];
+                                });
+                            }}
+                        />
+                    </div>
+                )}
             </main>
 
             {qrOpen && phoneToken && (
-                <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-6">
-                    <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white/90 backdrop-blur p-5 shadow-lg">
+                <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-6"
+                    onClick={() => setQrOpen(false)}
+                >
+                    <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white/90 backdrop-blur p-5 shadow-lg"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         <div className="flex items-center justify-between">
                             <div>
                                 <div className="text-sm font-semibold text-slate-900">Connect phone</div>
@@ -536,7 +616,7 @@ export default function Dashboard() {
 
             {previewImage && (
                 <div className="fixed inset-0 z-50 bg-slate-900/70 flex items-center justify-center p-6"
-                    onClick={() => setPreviewImage(null)} 
+                    onClick={() => setPreviewImage(null)}
                 >
                     <div className="relative max-w-5xl w-full flex items-center justify-center"
                     >
