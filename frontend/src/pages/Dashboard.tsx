@@ -45,8 +45,21 @@ export default function Dashboard() {
 
     const [selectedDeskImage, setSelectedDeskImage] = useState<string | null>(null);
 
+    function clearSessionState() {
+        setSessionImages([]);
+        setDeskImages([]);
+        setSelectedDeskImage(null);
+        setPreviewImage(null);
+        setBlobUrls(prev => {
+            Object.values(prev).forEach(URL.revokeObjectURL);
+            return {};
+        });
+    }
+
     async function changeSession(sessionId: string | null) {
         lastRequestedSession.current = sessionId;
+        clearSessionState();
+
         setLoading(true);
 
         if (!sessionId) {
@@ -143,6 +156,7 @@ export default function Dashboard() {
             setSessions(updatedSessions);
 
             changeSession(null);
+            clearSessionState();
             setQrOpen(false);
             setPhoneToken(null);
 
@@ -162,6 +176,7 @@ export default function Dashboard() {
             await deleteAllSessions();
             setSessions([]);
             changeSession(null);
+            clearSessionState();
             setQrOpen(false);
             setPhoneToken(null);
             navigate("/dashboard");
@@ -179,7 +194,7 @@ export default function Dashboard() {
 
         // if no session just cleanup and return
         if (!sessionId || !token) {
-            setSessionImages([]);
+            clearSessionState();
             return;
         }
 
@@ -414,12 +429,6 @@ export default function Dashboard() {
     }, [sessionImages]);
 
     useEffect(() => {
-        return () => {
-            Object.values(blobUrls).forEach(URL.revokeObjectURL);
-        };
-    }, []);
-
-    useEffect(() => {
         const el = deskScrollRef.current;
         if (!el) return;
 
@@ -474,7 +483,8 @@ export default function Dashboard() {
                     <div className="text-sm text-slate-600 cursor-pointer" onClick={() => changeSession(null)}>symly.ai</div>
                     <button
                         onClick={() => setImagePanelOpen(v => !v)}
-                        className="relative w-9 h-9 rounded-md flex items-center justify-center hover:bg-slate-200"
+                        disabled={activeSessionId == null}
+                        className="relative w-9 h-9 rounded-md flex items-center justify-center hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <Images size={18} className="text-slate-700" />
 
@@ -629,9 +639,9 @@ export default function Dashboard() {
                                     >
                                         <div className={`relative transition-all duration-200 rounded-lg overflow-hidden
                             ${isSelected
-    ? 'outline outline-2 outline-blue-400 shadow-xl'
-    : 'outline outline-1 outline-transparent hover:outline-slate-300 hover:shadow-md'
-}`}
+                                                ? 'outline outline-2 outline-blue-400 shadow-xl'
+                                                : 'outline outline-1 outline-transparent hover:outline-slate-300 hover:shadow-md'
+                                            }`}
                                         >
                                             <img
                                                 ref={(el) => { deskImageRefs.current[img.name] = el; }}
@@ -646,7 +656,7 @@ export default function Dashboard() {
                                                 className="absolute -top-12 left-1/2 -translate-x-1/2 
         bg-white rounded-xl shadow-xl border border-slate-200 
         flex items-center gap-0.5 p-1 z-20"
-        
+
                                             >
                                                 <button
                                                     className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 rounded-lg text-slate-600 hover:text-slate-900 transition-all active:scale-95"

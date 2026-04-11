@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Expand } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Expand, Plus } from "lucide-react";
 import type { SessionImage } from "../api/imageApi";
 
 interface ImagePanelProps {
@@ -10,6 +10,7 @@ interface ImagePanelProps {
 
 export default function ImagePanel({ images, onSelect, onAddToDesk }: ImagePanelProps) {
     const [urls, setUrls] = useState<Record<string, string>>({}); // map filename -> blob URL
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         const objectUrls: Record<string, string> = {};
@@ -36,7 +37,27 @@ export default function ImagePanel({ images, onSelect, onAddToDesk }: ImagePanel
 
     return (
         <div className="flex gap-2 overflow-x-auto p-2 border-t border-slate-200 bg-white/80">
+            <div
+                key="__upload__"
+                className="relative w-20 h-20 flex-shrink-0 rounded border-2 border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50 cursor-pointer flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-blue-500 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+            >
+                <Plus size={20} />
+                <span className="text-[10px] font-medium">Upload</span>
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                        // handle e.target.files
+                    }}
+                />
+            </div>
             {images.map((img) => (
+
+
                 <div key={img.name} className="relative group w-20 h-20 flex-shrink-0">
                     {/* Click image to add to desk */}
                     <img
