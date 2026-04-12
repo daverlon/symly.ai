@@ -89,6 +89,17 @@ public class SessionService {
         Session correspondingSession = sessionRepository.findByPublicId(publicId)
             .orElseThrow(() -> new SessionNotFoundException(publicId));
 
+        // find existing session, if it is valid
+        Optional<UploadSessionKey> existingKey = uploadKeyRepository.findTopBySessionIdOrderByExpiresAtDesc(correspondingSession.getId());
+
+        if (existingKey
+                .filter(key -> !key.isExpired())
+                .isPresent()) {
+
+            UploadSessionKey key = existingKey.get();
+            String keyStr = key.getKey();
+            return new UploadSessionKeyDto(keyStr, "/u/" + keyStr);
+        }
 
         byte[] bytes = new byte[16];
         random.nextBytes(bytes);

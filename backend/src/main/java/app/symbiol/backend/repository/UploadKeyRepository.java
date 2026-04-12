@@ -1,5 +1,6 @@
 package app.symbiol.backend.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,4 +16,8 @@ public interface UploadKeyRepository extends JpaRepository<UploadSessionKey, Lon
 
     public void deleteBySessionId(Long sessionId);
     public void deleteBySession(Session session);
+
+    public List<UploadSessionKey> findAllBySessionId(Long sessionId);
+
+    Optional<UploadSessionKey> findTopBySessionIdOrderByExpiresAtDesc(Long sessionId);
 }
