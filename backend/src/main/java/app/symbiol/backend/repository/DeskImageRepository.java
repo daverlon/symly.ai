@@ -1,0 +1,16 @@
+package app.symbiol.backend.repository;
+
+import java.util.List;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import app.symbiol.backend.model.DeskImage;
+
+@Repository
+public interface DeskImageRepository extends JpaRepository<DeskImage, Long> {
+
+    List<DeskImage> findAllBySessionId(long sessionId);
+
+
+}

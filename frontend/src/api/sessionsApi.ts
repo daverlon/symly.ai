@@ -17,6 +17,11 @@ export type UploadSessionValidateResponse = {
     sessionId: number;
 };
 
+export type DeskImageDto = {
+    url: string;
+    position: number;
+}
+
 function requireJwt() {
     const token = localStorage.getItem("jwt");
     if (!token) {
@@ -106,3 +111,20 @@ export async function deleteAllSessions(): Promise<void> {
     }
 }
 
+export async function getAllDeskImages(sessionId: string): Promise<DeskImageDto[]> {
+    const jwt = requireJwt(); 
+
+    const response = await fetch(`${API_BASE}/sessions${sessionId}/desk/images`, {
+        method: "GET",
+        headers: {
+            Authorization: `Bearer ${jwt}`,
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error(await response.text());
+    }
+
+    return response.json();
+
+}

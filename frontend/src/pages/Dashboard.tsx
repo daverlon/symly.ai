@@ -1,7 +1,7 @@
 import { act, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { getSessionData, getSessionEventSource, verifyToken } from "../api/accountsApi"
-import { createUploadSessionKey, createSession, deleteAllSessions, deleteSession, listSessions, type SessionId } from "../api/sessionsApi"
+import { createUploadSessionKey, createSession, deleteAllSessions, deleteSession, listSessions, type SessionId, getAllDeskImages } from "../api/sessionsApi"
 import { QRCodeSVG } from "qrcode.react"
 import { Menu, Plus, X } from "lucide-react"
 import { fetchSessionImages, type SessionImage } from "../api/imageApi"
@@ -71,6 +71,7 @@ export default function Dashboard() {
         try {
             const token = localStorage.getItem("jwt");
             const sessionData = await getSessionData(token, sessionId);
+            const deskImages = await getAllDeskImages(sessionId);
 
             if (lastRequestedSession.current !== sessionId) return; // Ignore outdated request
 

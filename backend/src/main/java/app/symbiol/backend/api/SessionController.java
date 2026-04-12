@@ -1,7 +1,6 @@
 package app.symbiol.backend.api;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -85,6 +84,7 @@ public class SessionController {
         );
     }
 
+    // todo - fetch images and desk stuff here instead
     @PostMapping("/sessions/{sessionId}/uploadKey")
     public ResponseEntity<UploadSessionKeyDto> createSessionUploadKey(
         @PathVariable String sessionId
@@ -207,6 +207,7 @@ public class SessionController {
 
     @GetMapping("/sessions/{publicSessionId}/images/{imageName}")
     public ResponseEntity<byte[]> getSessionImage(
+        @PathVariable String publicSessionId,
         @PathVariable String imageName,
         Authentication auth
     ) {
