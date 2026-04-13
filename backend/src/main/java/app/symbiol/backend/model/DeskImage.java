@@ -15,7 +15,7 @@ public class DeskImage {
     @GeneratedValue(strategy=GenerationType.AUTO)
     private Long id;
     
-    @OneToOne(optional = false)
+    @ManyToOne(optional = false)
     @JoinColumn(name = "session_id")
     private Session session;
 

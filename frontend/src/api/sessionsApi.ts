@@ -106,7 +106,7 @@ export async function deleteAllSessions(): Promise<void> {
     }
 }
 
-export async function getSessionData(sessionId: string): Promise<SessionDto> {
+export async function getSessionData(sessionId: string): Promise<SessionDto | null> {
     const jwt = requireJwt();
     const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {
         method: "GET",
@@ -116,7 +116,7 @@ export async function getSessionData(sessionId: string): Promise<SessionDto> {
     });
 
     if (!response.ok) {
-        throw new Error(await response.text());
+        return null;
     }
 
     return response.json();

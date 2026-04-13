@@ -73,7 +73,9 @@ export default function Dashboard() {
 
         try {
             const sessionData = await getSessionData(sessionId);
-            setDeskImages(sessionData.deskImages);
+            if (sessionData) {
+                setDeskImages(sessionData.deskImages);
+            }
 
             if (lastRequestedSession.current !== sessionId) return; // Ignore outdated request
 

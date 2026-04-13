@@ -35,6 +35,9 @@ public class Session {
     @OneToMany(mappedBy = "session")
     private List<Image> images;
 
+    @OneToMany(mappedBy = "session")
+    private List<DeskImage> deskImages;
+
     protected Session() {
     }
 
