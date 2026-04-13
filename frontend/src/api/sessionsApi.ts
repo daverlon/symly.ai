@@ -1,3 +1,6 @@
+import { requireJwt } from "./accountsApi";
+import type { DeskImage } from "./imageApi";
+
 const API_BASE = "http://localhost:8080";
 
 export type SessionId = {
@@ -17,17 +20,9 @@ export type UploadSessionValidateResponse = {
     sessionId: number;
 };
 
-export type DeskImageDto = {
-    url: string;
-    position: number;
-}
-
-function requireJwt() {
-    const token = localStorage.getItem("jwt");
-    if (!token) {
-        throw new Error("Not authenticated");
-    }
-    return token;
+export type SessionDto = {
+    creationDate: string;
+    deskImages: DeskImage[];
 }
 
 export async function listSessions(): Promise<SessionId[]> {
@@ -111,10 +106,9 @@ export async function deleteAllSessions(): Promise<void> {
     }
 }
 
-export async function getAllDeskImages(sessionId: string): Promise<DeskImageDto[]> {
-    const jwt = requireJwt(); 
-
-    const response = await fetch(`${API_BASE}/sessions${sessionId}/desk/images`, {
+export async function getSessionData(sessionId: string): Promise<SessionDto> {
+    const jwt = requireJwt();
+    const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {
         method: "GET",
         headers: {
             Authorization: `Bearer ${jwt}`,
@@ -126,5 +120,4 @@ export async function getAllDeskImages(sessionId: string): Promise<DeskImageDto[
     }
 
     return response.json();
-
 }

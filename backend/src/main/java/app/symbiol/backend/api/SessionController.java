@@ -3,6 +3,7 @@ package app.symbiol.backend.api;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpHeaders;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartFile;
 
+import app.symbiol.backend.dto.DeskImageDto;
 import app.symbiol.backend.dto.ImageUploadResponseDto;
 import app.symbiol.backend.dto.NotificationMesageType;
 import app.symbiol.backend.dto.SessionDto;
@@ -27,9 +29,11 @@ import app.symbiol.backend.dto.UploadSessionDto;
 import app.symbiol.backend.dto.UploadSessionKeyDto;
 import app.symbiol.backend.exception.InvalidUploadImageTypeException;
 import app.symbiol.backend.exception.SessionNotFoundException;
+import app.symbiol.backend.model.DeskImage;
 import app.symbiol.backend.model.Image;
 import app.symbiol.backend.model.Session;
 import app.symbiol.backend.model.UploadSessionKey;
+import app.symbiol.backend.service.DeskService;
 import app.symbiol.backend.service.ImageUploadService;
 import app.symbiol.backend.service.LocalImageStorageService;
 import app.symbiol.backend.service.NotificationService;
@@ -47,16 +51,20 @@ public class SessionController {
 
     private final NotificationService notificationService;
 
+    private final DeskService deskService;
+
     public SessionController(
         SessionService sessionService,
         ImageUploadService imageUploadService,
-        NotificationService notificationService
+        NotificationService notificationService,
+        DeskService deskService
 
     ) {
         this.sessionService = sessionService;
         this.imageUploadService = imageUploadService;
         this.imageStorageService = new LocalImageStorageService();
         this.notificationService = notificationService;
+        this.deskService = deskService;
     }
 
     @PostMapping("/sessions")
@@ -104,7 +112,17 @@ public class SessionController {
             Session s = sessionService.findSessionForUsername(publicSessionId, username)
                 .orElseThrow(() -> new SessionNotFoundException(publicSessionId));
 
-            SessionDto res = new SessionDto("Hello, World!", s.getCreationDate());
+            List<DeskImage> images = deskService.getDeskImages(publicSessionId);
+            List<DeskImageDto> imagesDto = IntStream.range(0, images.size()) 
+                .mapToObj(i -> {
+                    DeskImage img = images.get(i);
+                    DeskImageDto dto = new DeskImageDto(img.getFileName(), i);
+                    return dto;
+                })
+                .toList();
+            
+
+            SessionDto res = new SessionDto(s.getCreationDate(), imagesDto);
 
             return ResponseEntity.ok(res);
 

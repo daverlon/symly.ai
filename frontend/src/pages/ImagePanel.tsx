@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { Expand, Plus } from "lucide-react";
-import type { SessionImage } from "../api/imageApi";
+import type { DeskImage, SessionImage } from "../api/imageApi";
 
 interface ImagePanelProps {
     images: SessionImage[];
     onSelect: (blobUrl: string) => void;
-    onAddToDesk: (image: SessionImage) => void;
+    onAddToDesk: (image: DeskImage) => void;
+}
+
+function sessionImageToDeskImage(si: SessionImage): DeskImage {
+    const ret: DeskImage = {
+        name: si.name,
+        position: -1
+    }
+    return ret;
 }
 
 export default function ImagePanel({ images, onSelect, onAddToDesk }: ImagePanelProps) {
@@ -64,7 +72,7 @@ export default function ImagePanel({ images, onSelect, onAddToDesk }: ImagePanel
                         src={urls[img.name] || ""}
                         alt={img.name}
                         className="w-20 h-20 object-cover rounded cursor-pointer border border-slate-300 hover:border-blue-500"
-                        onClick={() => onAddToDesk(img)}
+                        onClick={() => onAddToDesk(sessionImageToDeskImage(img))}
                     />
                     {/* Hover button to preview */}
                     <button

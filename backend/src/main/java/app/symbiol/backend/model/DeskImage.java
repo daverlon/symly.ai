@@ -5,6 +5,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 
@@ -19,7 +20,7 @@ public class DeskImage {
     @JoinColumn(name = "session_id")
     private Session session;
 
-    @OneToMany
+    @ManyToOne()
     @JoinColumn(name = "image_id")
     private Image image;
 

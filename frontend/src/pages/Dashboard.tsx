@@ -1,12 +1,13 @@
 import { act, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { getSessionData, getSessionEventSource, verifyToken } from "../api/accountsApi"
-import { createUploadSessionKey, createSession, deleteAllSessions, deleteSession, listSessions, type SessionId, getAllDeskImages } from "../api/sessionsApi"
+import { getSessionEventSource, verifyToken } from "../api/accountsApi"
+import { createUploadSessionKey, createSession, deleteAllSessions, deleteSession, listSessions, type SessionId, getSessionData } from "../api/sessionsApi"
 import { QRCodeSVG } from "qrcode.react"
 import { Menu, Plus, X } from "lucide-react"
-import { fetchSessionImages, type SessionImage } from "../api/imageApi"
+import { fetchSessionImages, type DeskImage, type SessionImage } from "../api/imageApi"
 import ImagePanel from "./ImagePanel"
 import { Images, Sparkles, Camera, LogOut } from "lucide-react";
+import { saveDeskImage } from "../api/deskImageApi"
 
 
 export default function Dashboard() {
@@ -17,6 +18,8 @@ export default function Dashboard() {
     const deskImageRefs = useRef<Record<string, HTMLImageElement | null>>({});
 
     const deskScrollRef = useRef<HTMLDivElement | null>(null);
+
+    const deskImagesLoadedCount = useRef(0);
 
     const [username, setUsername] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -37,7 +40,7 @@ export default function Dashboard() {
 
     const [previewImage, setPreviewImage] = useState<string | null>(null); // uses the blobUrl
 
-    const [deskImages, setDeskImages] = useState<SessionImage[]>([]);
+    const [deskImages, setDeskImages] = useState<DeskImage[]>([]);
 
     const [blobUrls, setBlobUrls] = useState<Record<string, string>>({});
 
@@ -69,9 +72,8 @@ export default function Dashboard() {
         }
 
         try {
-            const token = localStorage.getItem("jwt");
-            const sessionData = await getSessionData(token, sessionId);
-            const deskImages = await getAllDeskImages(sessionId);
+            const sessionData = await getSessionData(sessionId);
+            setDeskImages(sessionData.deskImages);
 
             if (lastRequestedSession.current !== sessionId) return; // Ignore outdated request
 
@@ -82,6 +84,36 @@ export default function Dashboard() {
             // alert("Failed to fetch session.");
             setLoading(false);
             navigate("/dashboard");
+        }
+    }
+
+    useEffect(() => {
+        deskImagesLoadedCount.current = 0;
+    }, [deskImages.length]);
+
+    async function addDeskImage(deskImage: DeskImage) {
+        // assuming desk image data passed into this function is valid
+
+        if (!sessionId) return;
+
+        setDeskImages((prev) => {
+            return [...prev, deskImage]
+        });
+        if (deskImages.length > 0) {
+            const firstImg = deskImages.at(0);
+            deskImageRefs.current[firstImg!.name]?.scrollIntoView({
+                behavior: "smooth",
+                block: "nearest",
+                inline: "center",
+            });
+        }
+        //
+
+        try {
+            const res = saveDeskImage(sessionId, deskImage);
+
+        } catch (e) {
+            alert("Failed to save desk image to session.");
         }
     }
 
@@ -649,6 +681,17 @@ export default function Dashboard() {
                                                 src={src || ""}
                                                 className="h-[80vh] w-auto object-contain block"
                                                 alt={img.name}
+                                                onLoad={() => {
+                                                    deskImagesLoadedCount.current += 1;
+                                                    if (deskImagesLoadedCount.current >= deskImages.length) {
+                                                        const container = deskScrollRef.current;
+                                                        if (!container) return;
+                                                        container.scrollTo({
+                                                            left: (container.scrollWidth - container.clientWidth) / 2,
+                                                            behavior: "smooth",
+                                                        });
+                                                    }
+                                                }}
                                             />
                                         </div>
 
@@ -710,10 +753,7 @@ export default function Dashboard() {
                                 if (!previewImage) setPreviewImage(blobUrl);
                             }}
                             onAddToDesk={(img) => {
-                                setDeskImages((prev) => {
-                                    if (prev.find((x) => x.name === img.name)) return prev;
-                                    return [...prev, img];
-                                });
+                                addDeskImage(img);
                                 // scroll to it after render
                                 setTimeout(() => {
                                     deskImageRefs.current[img.name]?.scrollIntoView({

@@ -13,6 +13,11 @@ export type SessionImage = {
     // tags?
 };
 
+export type DeskImage = {
+    name: string
+    position: number
+}
+
 export async function uploadImageFile(uploadKey: string, file: File): Promise<ImageUploadResponseDto> {
 
 

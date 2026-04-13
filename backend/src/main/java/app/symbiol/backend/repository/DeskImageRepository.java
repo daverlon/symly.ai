@@ -12,5 +12,4 @@ public interface DeskImageRepository extends JpaRepository<DeskImage, Long> {
 
     List<DeskImage> findAllBySessionId(long sessionId);
 
-
 }

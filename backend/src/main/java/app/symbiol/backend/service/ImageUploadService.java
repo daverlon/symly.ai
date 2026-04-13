@@ -1,6 +1,7 @@
 package app.symbiol.backend.service;
 
 import app.symbiol.backend.dto.SessionImageDto;
+import app.symbiol.backend.exception.ImageNotFoundException;
 import app.symbiol.backend.exception.InvalidUploadSessionKeyException;
 import app.symbiol.backend.exception.SessionNotFoundException;
 import app.symbiol.backend.model.Image;
@@ -86,7 +87,9 @@ public class ImageUploadService {
 
     @Transactional(readOnly = true)
     public Instant getImageDateForFileName(String fileName) {
-        Image i = imageRepository.findByFileName(fileName);
+        Image i = imageRepository.findByFileName(fileName)
+            .orElseThrow(() -> new ImageNotFoundException(fileName));
+
         return i.getUploadDate();
     }
 }

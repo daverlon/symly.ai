@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {  } from "../api/sessionsApi";
-import { getUploadSessionData } from "../api/accountsApi";
 import { uploadImageFile } from "../api/imageApi";
+import { getUploadSessionData } from "../api/uploadSessionApi";
 
 
 

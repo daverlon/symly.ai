@@ -62,4 +62,9 @@ public class GlobalExceptionHandler {
             .status(401)
             .body(ex.getMessage());
     }
+
+    @ExceptionHandler(ImageNotFoundException.class)
+    public ResponseEntity<String> handleImageNotFoundException(ImageNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+    }
 }
