@@ -58,7 +58,7 @@ public class DeskController {
         List<DeskImageDto> imagesDto = IntStream.range(0, images.size())
                 .mapToObj(i -> {
                     DeskImage img = images.get(i);
-                    DeskImageDto dto = new DeskImageDto(img.getFileName(), i);
+                    DeskImageDto dto = new DeskImageDto(img.getFileName(), i, img.getUid());
                     return dto;
                 })
                 .toList();

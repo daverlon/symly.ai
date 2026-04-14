@@ -16,6 +16,7 @@ export type SessionImage = {
 export type DeskImage = {
     name: string
     position: number
+    uid: string
 }
 
 export async function uploadImageFile(uploadKey: string, file: File): Promise<ImageUploadResponseDto> {

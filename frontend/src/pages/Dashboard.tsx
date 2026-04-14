@@ -1,4 +1,4 @@
-import { act, useEffect, useMemo, useRef, useState } from "react"
+import { act, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { getSessionEventSource, verifyToken } from "../api/accountsApi"
 import { createUploadSessionKey, createSession, deleteAllSessions, deleteSession, listSessions, type SessionId, getSessionData } from "../api/sessionsApi"
@@ -8,6 +8,17 @@ import { fetchSessionImages, type DeskImage, type SessionImage } from "../api/im
 import ImagePanel from "./ImagePanel"
 import { Images, Sparkles, Camera, LogOut } from "lucide-react";
 import { saveDeskImage } from "../api/deskImageApi"
+import { useCanvas } from "../hooks/useCanvas"
+import { useEventSource } from "../hooks/useEventSource"
+import { useEscapeKeyHandler } from "../hooks/useEscapeKeyHandler"
+import { useCheckToken } from "../hooks/useCheckToken"
+import { useMouseDrag } from "../hooks/useMouseDrag"
+import { useResetLoadedDeskImageCount } from "../hooks/useResetLoadedDeskImageCount"
+import { useHydrateSessionImages } from "../hooks/useHydrateSessionImages"
+import { useLoadSessionImages } from "../hooks/useLoadSessionImages"
+import { useHandleSessionChange } from "../hooks/useHandleSessionChange"
+import { useSessionList } from "../hooks/useSessionList"
+import { useLoadSessionData } from "../hooks/useLoadSessionData"
 
 
 export default function Dashboard() {
@@ -21,34 +32,35 @@ export default function Dashboard() {
 
     const deskImagesLoadedCount = useRef(0);
 
-    const [username, setUsername] = useState<string | null>(null);
+
+
     const [loading, setLoading] = useState(true);
-    const [sessions, setSessions] = useState<SessionId[]>([]);
     const [qrOpen, setQrOpen] = useState(false);
     const [phoneToken, setPhoneToken] = useState<string | null>(null);
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
+
+    const {sessions, setSessions} = useSessionList(sidebarOpen);
+
     const { sessionId } = useParams<{ sessionId: string }>();
 
-    const [sse, setsse] = useState<EventSource | null>();
-
     const activeSessionId = sessionId ?? null;
-
-    const lastRequestedSession = useRef<string | null>(null);
-
-    const [sessionImages, setSessionImages] = useState<SessionImage[]>([]);
 
     const [previewImage, setPreviewImage] = useState<string | null>(null); // uses the blobUrl
 
     const [deskImages, setDeskImages] = useState<DeskImage[]>([]);
 
-    const [blobUrls, setBlobUrls] = useState<Record<string, string>>({});
-
     const [imagePanelOpen, setImagePanelOpen] = useState<boolean>(false);
 
     const [selectedDeskImage, setSelectedDeskImage] = useState<string | null>(null);
 
-    function clearSessionState() {
+
+    // const {username, setUsername} = useCheckToken(navigate, setLoading);
+    useCheckToken(navigate, setLoading);
+
+    const clearSessionState = useCallback(() => {
+        setImagePanelOpen(false);
+        setQrOpen(false);
         setSessionImages([]);
         setDeskImages([]);
         setSelectedDeskImage(null);
@@ -57,41 +69,32 @@ export default function Dashboard() {
             Object.values(prev).forEach(URL.revokeObjectURL);
             return {};
         });
-    }
+    }, []);
+    useHandleSessionChange(
+        navigate,
+        activeSessionId,
+        setLoading,
+        clearSessionState,
+    );
 
-    async function changeSession(sessionId: string | null) {
-        lastRequestedSession.current = sessionId;
-        clearSessionState();
+    const { sessionImages, setSessionImages } = useLoadSessionImages(activeSessionId);
+    useEventSource(activeSessionId, setSessionImages);
 
-        setLoading(true);
+    const { blobUrls, setBlobUrls } = useHydrateSessionImages(sessionImages);
+    useLoadSessionData(activeSessionId, setDeskImages, setLoading);
+    useResetLoadedDeskImageCount(deskImagesLoadedCount, deskImages);
 
-        if (!sessionId) {
-            navigate("/dashboard");
-            setLoading(false);
-            return;
-        }
+    useCanvas(canvasRef, loading);
 
-        try {
-            const sessionData = await getSessionData(sessionId);
-            if (sessionData) {
-                setDeskImages(sessionData.deskImages);
-            }
-
-            if (lastRequestedSession.current !== sessionId) return; // Ignore outdated request
-
-            setLoading(false);
-            navigate(`/dashboard/s/${sessionId}`);
-        } catch (e) {
-            if (lastRequestedSession.current !== sessionId) return;
-            // alert("Failed to fetch session.");
-            setLoading(false);
-            navigate("/dashboard");
-        }
-    }
-
-    useEffect(() => {
-        deskImagesLoadedCount.current = 0;
-    }, [deskImages.length]);
+    useEscapeKeyHandler(
+        previewImage, 
+        setPreviewImage, 
+        imagePanelOpen, 
+        setImagePanelOpen,
+        selectedDeskImage,
+        setSelectedDeskImage
+    );
+    useMouseDrag(deskScrollRef, deskImages);
 
     async function addDeskImage(deskImage: DeskImage) {
         // assuming desk image data passed into this function is valid
@@ -119,26 +122,6 @@ export default function Dashboard() {
         }
     }
 
-    async function checkToken() {
-        const token = localStorage.getItem("jwt");
-
-        if (!token) {
-            navigate("/login");
-            return;
-        }
-
-        try {
-            const result = await verifyToken(token);
-            setUsername(result.username);
-        } catch (err) {
-            console.error("Token verification failed.");
-            localStorage.removeItem("jwt");
-            navigate("/login");
-        } finally {
-            setLoading(false);
-        }
-    }
-
     async function handleSignOut() {
         localStorage.removeItem("jwt");
         navigate("/login");
@@ -159,7 +142,8 @@ export default function Dashboard() {
                 )
             );
             if (refreshedSessions.length > 0) {
-                changeSession(refreshedSessions[0].id); // optionally select the newest
+                // changeSession(refreshedSessions[0].id); // optionally select the newest
+                navigate("/dashboard")
             }
         } catch (e) {
             const msg = e instanceof Error ? e.message : "Failed to create session.";
@@ -190,10 +174,7 @@ export default function Dashboard() {
             const updatedSessions = await listSessions();
             setSessions(updatedSessions);
 
-            changeSession(null);
-            clearSessionState();
-            setQrOpen(false);
-            setPhoneToken(null);
+            navigate("/dashboard");
 
         } catch (e) {
             const msg = e instanceof Error ? e.message : "Failed to delete session.";
@@ -209,299 +190,12 @@ export default function Dashboard() {
 
         try {
             await deleteAllSessions();
-            setSessions([]);
-            changeSession(null);
-            clearSessionState();
-            setQrOpen(false);
-            setPhoneToken(null);
             navigate("/dashboard");
         } catch (e) {
             const msg = e instanceof Error ? e.message : "Failed to delete sessions.";
             alert(msg);
         }
     }
-
-    async function loadAllSessionImages(sessionId: string | null) {
-        // get images for the session when loaded
-
-
-        const token = localStorage.getItem("jwt");
-
-        // if no session just cleanup and return
-        if (!sessionId || !token) {
-            clearSessionState();
-            return;
-        }
-
-        // find images
-        try {
-            const images = await fetchSessionImages(token, sessionId);
-            setSessionImages(images);
-            console.log(`Loaded ${images.length} images:`);
-            for (let i = 0; i < images.length; i++) {
-                const image = images.at(i);
-                if (!image) {
-                    console.log(`\t[${i}] unknown`);
-                    continue;
-                };
-                console.log(`\t[${i}] ${image.name}`);
-                console.log(`\t[${i}] ${image.uploadDate}`);
-                console.log(`\t[${i}] ${image.url}`);
-            }
-
-        } catch (e) {
-            const msg = e instanceof Error ? e.message : "Failed to load sessions.";
-            alert(msg);
-        }
-    }
-
-    async function hydrateImage(img: SessionImage) {
-        if (blobUrls[img.name]) return; // already loaded
-
-        const token = localStorage.getItem("jwt");
-        if (!token) return;
-
-        const res = await fetch(img.url, {
-            headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) return;
-
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-
-        setBlobUrls(prev => ({
-            ...prev,
-            [img.name]: url
-        }));
-    }
-
-    useEffect(() => {
-        checkToken();
-    }, []);
-
-    useEffect(() => {
-        changeSession(sessionId ?? null);
-    }, [sessionId])
-
-    useEffect(() => {
-        listSessions()
-            .then((fetchedSessions) => {
-                // Convert to Date objects and sort newest first
-                const sorted = fetchedSessions
-                    .slice()
-                    .sort((a, b) => new Date(b.creationDate).getTime() - new Date(a.creationDate).getTime());
-                setSessions(sorted);
-            })
-            .catch((e) => {
-                const msg = e instanceof Error ? e.message : "Failed to load sessions.";
-                alert(msg);
-            });
-    }, []);
-
-    useEffect(() => {
-        loadAllSessionImages(activeSessionId);
-    }, [activeSessionId]);
-
-
-    useEffect(() => {
-        if (!activeSessionId) {
-            setsse(null);
-            return;
-        }
-
-        // close previous sse
-        if (sse) {
-            sse.close();
-        }
-
-        const newSse = getSessionEventSource(activeSessionId)!;
-        setsse(newSse);
-
-        const handleOpen = () => {
-            console.log("SSE connected successfully");
-        };
-
-        const handleMessage = (event: MessageEvent) => {
-            const data = JSON.parse(event.data)
-            console.log(data);
-            if (data.type == "image_uploaded") {
-                const x = data.payload as SessionImage;
-                // console.log("paylaod: " + x);
-                setSessionImages(prev => [...prev, x]);
-            }
-            console.log("SSE message received:", event.data);
-        };
-
-        const handleError = (event: Event) => {
-            console.error("SSE error:", event);
-            if (newSse.readyState === EventSource.CLOSED) {
-                console.log("SSE connection closed");
-            } else {
-                alert("SSE connection error");
-            }
-        };
-
-        newSse.addEventListener("open", handleOpen);
-        newSse.addEventListener("message", handleMessage);
-        newSse.addEventListener("error", handleError);
-        return () => {
-            newSse.removeEventListener("open", handleOpen);
-            newSse.removeEventListener("message", handleMessage);
-            newSse.removeEventListener("error", handleError);
-            newSse.close();
-        }
-    }, [activeSessionId]);
-
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-
-        const dpr = Math.max(1, window.devicePixelRatio || 1);
-
-        const draw = () => {
-            const rect = canvas.getBoundingClientRect();
-            const width = Math.max(1, Math.floor(rect.width));
-            const height = Math.max(1, Math.floor(rect.height));
-
-            canvas.width = Math.floor(width * dpr);
-            canvas.height = Math.floor(height * dpr);
-
-            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-            ctx.clearRect(0, 0, width, height);
-
-            // Draw grid
-            const spacing = 40;
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = "rgba(148, 163, 184, 0.22)";
-            for (let x = 0; x <= width; x += spacing) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, height);
-                ctx.stroke();
-            }
-            for (let y = 0; y <= height; y += spacing) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(width, y);
-                ctx.stroke();
-            }
-
-            // Subtle center glow
-            const gradient = ctx.createRadialGradient(
-                width * 0.55,
-                height * 0.35,
-                0,
-                width * 0.55,
-                height * 0.35,
-                Math.max(width, height)
-            );
-            gradient.addColorStop(0, "rgba(59, 130, 246, 0.06)");
-            gradient.addColorStop(1, "rgba(59, 130, 246, 0.00)");
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, width, height);
-
-            // **Draw loading spinner if loading**
-            if (loading) {
-                const spinnerRadius = 20;
-                const now = Date.now() / 500; // speed
-                ctx.save();
-                ctx.translate(width / 2, height / 2);
-                ctx.rotate(now % (2 * Math.PI));
-                ctx.lineWidth = 4;
-                ctx.strokeStyle = "#3B82F6"; // blue
-                ctx.beginPath();
-                ctx.arc(0, 0, spinnerRadius, 0, Math.PI * 1.5);
-                ctx.stroke();
-                ctx.restore();
-
-                // Text
-                ctx.font = "16px sans-serif";
-                ctx.fillStyle = "#1E293B"; // slate-800
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillText("Loading session", width / 2, height / 2 - 45);
-            }
-        };
-
-        draw();
-        let raf = 0;
-        const onResize = () => {
-            cancelAnimationFrame(raf);
-            raf = requestAnimationFrame(draw);
-        };
-
-        window.addEventListener("resize", onResize);
-        const interval = setInterval(() => requestAnimationFrame(draw), 16); // ~60fps for spinner
-        return () => {
-            clearInterval(interval);
-            cancelAnimationFrame(raf);
-            window.removeEventListener("resize", onResize);
-        };
-    }, [loading]);
-
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
-                if (previewImage)
-                    setPreviewImage(null);
-                else if (imagePanelOpen)
-                    setImagePanelOpen(false);
-                else if (selectedDeskImage)
-                    setSelectedDeskImage(null);
-            }
-        };
-
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [previewImage, imagePanelOpen, selectedDeskImage]);
-
-    useEffect(() => {
-        sessionImages.forEach(hydrateImage);
-    }, [sessionImages]);
-
-    useEffect(() => {
-        const el = deskScrollRef.current;
-        if (!el) return;
-
-        let isMiddleDragging = false;
-        let startX = 0;
-        let scrollLeft = 0;
-
-        const onMouseDown = (e: MouseEvent) => {
-            if (e.button !== 1) return;
-            e.preventDefault();
-            isMiddleDragging = true;
-            startX = e.pageX;
-            scrollLeft = el.scrollLeft;
-            el.style.cursor = "grabbing";
-        };
-
-        const onMouseMove = (e: MouseEvent) => {
-            if (!isMiddleDragging) return;
-            const dx = e.pageX - startX;
-            el.scrollLeft = scrollLeft - dx;
-        };
-
-        const onMouseUp = (e: MouseEvent) => {
-            if (e.button !== 1) return;
-            isMiddleDragging = false;
-            el.style.cursor = "";
-        };
-
-        el.addEventListener("mousedown", onMouseDown);
-        window.addEventListener("mousemove", onMouseMove);
-        window.addEventListener("mouseup", onMouseUp);
-
-        return () => {
-            el.removeEventListener("mousedown", onMouseDown);
-            window.removeEventListener("mousemove", onMouseMove);
-            window.removeEventListener("mouseup", onMouseUp);
-        };
-    }, [deskImages]);
 
     return (
         <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
@@ -515,7 +209,7 @@ export default function Dashboard() {
                     >
                         <Menu size={18} className="text-slate-700" />
                     </button>
-                    <div className="text-sm text-slate-600 cursor-pointer" onClick={() => changeSession(null)}>symly.ai</div>
+                    <div className="text-sm text-slate-600 cursor-pointer" onClick={() => navigate("/dashboard")}>symly.ai</div>
                     <button
                         onClick={() => setImagePanelOpen(v => !v)}
                         disabled={activeSessionId == null}
@@ -582,7 +276,7 @@ export default function Dashboard() {
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        changeSession(s.id);
+                                        navigate("/dashboard/s/"+s.id);
                                         setSidebarOpen(false);
                                     }}
                                     className="flex-1 text-left"
