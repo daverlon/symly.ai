@@ -52,5 +52,16 @@ public class DeskService {
         );
         deskImageRepository.save(image);
     }
+
+    public void deleteAllDeskImages(String publicSessionId) {
+        Session s = sessionRepository.findByPublicId(publicSessionId)
+                .orElseThrow(() -> new SessionNotFoundException(publicSessionId));
+
+        List<DeskImage> i = deskImageRepository.findAllBySessionId(s.getId());
+        i.forEach((img) -> {
+            if (img != null)
+                deskImageRepository.delete(img);
+        });
+    }
     
 }

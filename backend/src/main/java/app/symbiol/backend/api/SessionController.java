@@ -140,10 +140,11 @@ public class SessionController {
 
             Deleting sessions:
         
-            1. delete upload key 
-            2. delete image reference
-            3. delete local image
-            4. delete session
+            - delete upload key
+            - delete desk image
+            - delete image reference
+            - delete local image
+            - delete session
 
             To do:
 
@@ -164,6 +165,8 @@ public class SessionController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
 
+        deskService.deleteAllDeskImages(publicSessionId);
+
         sessionService.deleteUploadKey(publicSessionId);
         List<String> fileNames = imageUploadService.getAllImageKeysForPublicSessionId(publicSessionId);
         imageUploadService.deleteAllImagesForPublicSessionId(publicSessionId);
@@ -181,6 +184,7 @@ public class SessionController {
 
         List<String> ids = sessionService.listSessionsForUsername(username).stream().map(Session::getPublicId).toList();
         for (String pId : ids) {
+            deskService.deleteAllDeskImages(pId);
             sessionService.deleteUploadKey(pId);
             List<String> fileNames = imageUploadService.getAllImageKeysForPublicSessionId(pId);
             imageUploadService.deleteAllImagesForPublicSessionId(pId);
