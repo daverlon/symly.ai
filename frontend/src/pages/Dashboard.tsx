@@ -1,12 +1,11 @@
-import { act, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { getSessionEventSource, verifyToken } from "../api/accountsApi"
-import { createUploadSessionKey, createSession, deleteAllSessions, deleteSession, listSessions, type SessionId, getSessionData } from "../api/sessionsApi"
+import { createUploadSessionKey, createSession, deleteAllSessions, deleteSession, listSessions } from "../api/sessionsApi"
 import { QRCodeSVG } from "qrcode.react"
 import { Menu, Plus, X } from "lucide-react"
-import { fetchSessionImages, type DeskImage, type SessionImage } from "../api/imageApi"
+import { type DeskImage } from "../api/imageApi"
 import ImagePanel from "./ImagePanel"
-import { Images, Sparkles, Camera, LogOut } from "lucide-react";
+import { Images, Sparkles, Camera, LogOut } from "lucide-react"
 import { saveDeskImage } from "../api/deskImageApi"
 import { useCanvas } from "../hooks/useCanvas"
 import { useEventSource } from "../hooks/useEventSource"
@@ -22,42 +21,37 @@ import { useLoadSessionData } from "../hooks/useLoadSessionData"
 
 
 export default function Dashboard() {
-
     const navigate = useNavigate();
+    const { sessionId } = useParams<{ sessionId: string }>();
+    const activeSessionId = sessionId ?? null;
+
+    // refs
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
     const deskImageRefs = useRef<Record<string, HTMLImageElement | null>>({});
-
     const deskScrollRef = useRef<HTMLDivElement | null>(null);
-
     const deskImagesLoadedCount = useRef(0);
 
-
-
+    // state
     const [loading, setLoading] = useState(true);
     const [qrOpen, setQrOpen] = useState(false);
     const [phoneToken, setPhoneToken] = useState<string | null>(null);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [imagePanelOpen, setImagePanelOpen] = useState(false);
 
-
-    const {sessions, setSessions} = useSessionList(sidebarOpen);
-
-    const { sessionId } = useParams<{ sessionId: string }>();
-
-    const activeSessionId = sessionId ?? null;
-
-    const [previewImage, setPreviewImage] = useState<string | null>(null); // uses the blobUrl
-
+    const [previewImage, setPreviewImage] = useState<string | null>(null);
     const [deskImages, setDeskImages] = useState<DeskImage[]>([]);
-
-    const [imagePanelOpen, setImagePanelOpen] = useState<boolean>(false);
-
     const [selectedDeskImage, setSelectedDeskImage] = useState<string | null>(null);
 
+    // independent hooks
+    const { sessions, setSessions } = useSessionList(sidebarOpen);
 
-    // const {username, setUsername} = useCheckToken(navigate, setLoading);
-    useCheckToken(navigate, setLoading);
+    const { sessionImages, setSessionImages } =
+        useLoadSessionImages(activeSessionId);
 
+    const { blobUrls, setBlobUrls } =
+        useHydrateSessionImages(sessionImages);
+
+    // session lifecycle callback (depends on setters above)
     const clearSessionState = useCallback(() => {
         setImagePanelOpen(false);
         setQrOpen(false);
@@ -69,32 +63,36 @@ export default function Dashboard() {
             Object.values(prev).forEach(URL.revokeObjectURL);
             return {};
         });
-    }, []);
+    }, [setSessionImages, setDeskImages, setBlobUrls]);
+
     useHandleSessionChange(
         navigate,
         activeSessionId,
         setLoading,
-        clearSessionState,
+        clearSessionState
     );
 
-    const { sessionImages, setSessionImages } = useLoadSessionImages(activeSessionId);
+    // data loading hooks (session dependent)
+    useLoadSessionData(activeSessionId, setDeskImages, setLoading);
     useEventSource(activeSessionId, setSessionImages);
 
-    const { blobUrls, setBlobUrls } = useHydrateSessionImages(sessionImages);
-    useLoadSessionData(activeSessionId, setDeskImages, setLoading);
+    // UI / behavior hooks
     useResetLoadedDeskImageCount(deskImagesLoadedCount, deskImages);
 
     useCanvas(canvasRef, loading);
 
     useEscapeKeyHandler(
-        previewImage, 
-        setPreviewImage, 
-        imagePanelOpen, 
+        previewImage,
+        setPreviewImage,
+        imagePanelOpen,
         setImagePanelOpen,
         selectedDeskImage,
         setSelectedDeskImage
     );
+
     useMouseDrag(deskScrollRef, deskImages);
+
+    useCheckToken(navigate, setLoading);
 
     async function addDeskImage(deskImage: DeskImage) {
         // assuming desk image data passed into this function is valid
@@ -142,8 +140,7 @@ export default function Dashboard() {
                 )
             );
             if (refreshedSessions.length > 0) {
-                // changeSession(refreshedSessions[0].id); // optionally select the newest
-                navigate("/dashboard")
+                navigate("/dashboard") // change session by navigating to the new id?
             }
         } catch (e) {
             const msg = e instanceof Error ? e.message : "Failed to create session.";
