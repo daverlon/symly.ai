@@ -6,7 +6,7 @@ import { Menu, Plus, X } from "lucide-react"
 import { type DeskImage } from "../api/imageApi"
 import ImagePanel from "./ImagePanel"
 import { Images, Sparkles, Camera, LogOut } from "lucide-react"
-import { saveDeskImage } from "../api/deskImageApi"
+import { deleteDeskImage, saveDeskImage } from "../api/deskImageApi"
 import { useCanvas } from "../hooks/useCanvas"
 import { useEventSource } from "../hooks/useEventSource"
 import { useEscapeKeyHandler } from "../hooks/useEscapeKeyHandler"
@@ -98,9 +98,8 @@ export default function Dashboard() {
         // assuming desk image data passed into this function is valid
 
         if (!sessionId) return;
-        const imageWithId = { ...deskImage, uid: crypto.randomUUID() };
         setDeskImages((prev) => {
-            return [...prev, imageWithId]
+            return [...prev, deskImage]
         });
         if (deskImages.length > 0) {
             const firstImg = deskImages.at(0);
@@ -115,6 +114,28 @@ export default function Dashboard() {
         try {
             const res = saveDeskImage(sessionId, deskImage);
 
+        } catch (e) {
+            alert("Failed to save desk image to session.");
+        }
+    }
+
+    async function removeDeskImage(deskImage: DeskImage) {
+
+        if (!sessionId) return;
+
+        setDeskImages(prev =>
+            prev.filter(img => img.name !== deskImage.uid)
+        );
+
+        if (deskImages.length > 0) {
+            deskImageRefs.current[deskImages.length-1]?.scrollIntoView({
+                behavior: "smooth",
+                block: "nearest",
+                inline: "center",
+            });
+        }
+        try {
+            const res = deleteDeskImage(sessionId, deskImage);
         } catch (e) {
             alert("Failed to save desk image to session.");
         }
@@ -403,13 +424,15 @@ export default function Dashboard() {
                                             <div
                                                 className="absolute -top-12 left-1/2 -translate-x-1/2 
         bg-white rounded-xl shadow-xl border border-slate-200 
-        flex items-center gap-0.5 p-1 z-20"
+        flex items-center gap-0.5 p-1 z-200"
 
                                             >
                                                 <button
                                                     className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 rounded-lg text-slate-600 hover:text-slate-900 transition-all active:scale-95"
                                                     title="Chat with AI"
-                                                    onClick={(e) => e.stopPropagation()}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                    }}
                                                 >
                                                     <Sparkles size={16} />
                                                 </button>
@@ -420,8 +443,7 @@ export default function Dashboard() {
                                                     type="button"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        setDeskImages(prev => prev.filter(x => x.name !== img.name));
-                                                        setSelectedIndex(null);
+                                                        removeDeskImage(img);
                                                     }}
                                                     className="w-8 h-8 flex items-center justify-center hover:bg-red-500 hover:text-white 
             text-slate-700 rounded-lg transition-all active:scale-95"
