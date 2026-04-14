@@ -40,7 +40,7 @@ export default function Dashboard() {
 
     const [previewImage, setPreviewImage] = useState<string | null>(null);
     const [deskImages, setDeskImages] = useState<DeskImage[]>([]);
-    const [selectedDeskImage, setSelectedDeskImage] = useState<string | null>(null);
+    const [selectedIndex, setSelectedIndex] = useState<number | null>(0);
 
     // independent hooks
     const { sessions, setSessions } = useSessionList(sidebarOpen);
@@ -57,7 +57,7 @@ export default function Dashboard() {
         setQrOpen(false);
         setSessionImages([]);
         setDeskImages([]);
-        setSelectedDeskImage(null);
+        setSelectedIndex(null);
         setPreviewImage(null);
         setBlobUrls(prev => {
             Object.values(prev).forEach(URL.revokeObjectURL);
@@ -86,8 +86,8 @@ export default function Dashboard() {
         setPreviewImage,
         imagePanelOpen,
         setImagePanelOpen,
-        selectedDeskImage,
-        setSelectedDeskImage
+        selectedIndex,
+        setSelectedIndex
     );
 
     useMouseDrag(deskScrollRef, deskImages);
@@ -98,9 +98,9 @@ export default function Dashboard() {
         // assuming desk image data passed into this function is valid
 
         if (!sessionId) return;
-
+        const imageWithId = { ...deskImage, uid: crypto.randomUUID() };
         setDeskImages((prev) => {
-            return [...prev, deskImage]
+            return [...prev, imageWithId]
         });
         if (deskImages.length > 0) {
             const firstImg = deskImages.at(0);
@@ -338,25 +338,28 @@ export default function Dashboard() {
                     <div
                         ref={deskScrollRef}
                         className="absolute inset-0 overflow-x-auto overflow-y-hidden"
-                        onClick={() => setSelectedDeskImage(null)}
+                        onClick={() => setSelectedIndex(null)}
                     >
                         <div className="flex h-full items-center gap-10 w-max">
                             <div className="shrink-0 w-[40vw]" />
 
-                            {deskImages.map((img) => {
+                            {/* {deskImages.map((img) => { */}
+                            {deskImages.map((img, index) => {
+                                const isSelected = selectedIndex === index;
                                 const src = blobUrls[img.name];
-                                const isSelected = selectedDeskImage === img.name;
+                                // const isSelected = selectedDeskImage === img.uid;
 
                                 return (
                                     <div
-                                        key={img.name}
+                                        key={index}
                                         className="relative group flex-shrink-0"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             setImagePanelOpen(false);
                                             if (isSelected) return;
-                                            setSelectedDeskImage(img.name);
-                                            deskImageRefs.current[img.name]?.scrollIntoView({
+                                            // setSelectedDeskImage(img.uid);
+                                            setSelectedIndex(index);
+                                            deskImageRefs.current[index]?.scrollIntoView({
                                                 behavior: "smooth",
                                                 block: "nearest",
                                                 inline: "center",
@@ -369,9 +372,12 @@ export default function Dashboard() {
                                                 : 'outline outline-1 outline-transparent hover:outline-slate-300 hover:shadow-md'
                                             }`}
                                         >
-                                            <img
-                                                ref={(el) => { deskImageRefs.current[img.name] = el; }}
-                                                src={src || ""}
+                                            {img && (<img
+                                                ref={(el) => {
+                                                    deskImageRefs.current[index] = el;
+                                                }}
+
+                                                src={src}
                                                 className="h-[80vh] w-auto object-contain block"
                                                 alt={img.name}
                                                 onLoad={() => {
@@ -379,13 +385,18 @@ export default function Dashboard() {
                                                     if (deskImagesLoadedCount.current >= deskImages.length) {
                                                         const container = deskScrollRef.current;
                                                         if (!container) return;
-                                                        container.scrollTo({
-                                                            left: (container.scrollWidth - container.clientWidth) / 2,
+                                                        // container.scrollTo({
+                                                        //     left: (container.scrollWidth - container.clientWidth) / 2,
+                                                        //     behavior: "smooth",
+                                                        // });
+                                                        deskImageRefs.current[deskImages.length - 1]?.scrollIntoView({
                                                             behavior: "smooth",
+                                                            block: "nearest",
+                                                            inline: "center",
                                                         });
                                                     }
                                                 }}
-                                            />
+                                            />)}
                                         </div>
 
                                         {isSelected && (
@@ -410,7 +421,7 @@ export default function Dashboard() {
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         setDeskImages(prev => prev.filter(x => x.name !== img.name));
-                                                        setSelectedDeskImage(null);
+                                                        setSelectedIndex(null);
                                                     }}
                                                     className="w-8 h-8 flex items-center justify-center hover:bg-red-500 hover:text-white 
             text-slate-700 rounded-lg transition-all active:scale-95"

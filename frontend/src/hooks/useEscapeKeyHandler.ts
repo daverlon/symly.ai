@@ -8,8 +8,8 @@ export function useEscapeKeyHandler(
     imagePanelOpen: boolean,
     setImagePanelOpen: React.Dispatch<React.SetStateAction<boolean>>,
 
-    selectedDeskImage: string | null,
-    setSelectedDeskImage: React.Dispatch<React.SetStateAction<string | null>>
+    selectedIndex: number | null,
+    setSelectedIndex: React.Dispatch<React.SetStateAction<number | null>>
 
 ) {
     useEffect(() => {
@@ -19,12 +19,12 @@ export function useEscapeKeyHandler(
                     setPreviewImage(null);
                 else if (imagePanelOpen)
                     setImagePanelOpen(false);
-                else if (selectedDeskImage)
-                    setSelectedDeskImage(null);
+                else if (selectedIndex)
+                    setSelectedIndex(null);
             }
         };
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [previewImage, imagePanelOpen, selectedDeskImage]);
+    }, [previewImage, imagePanelOpen, setSelectedIndex]);
 }

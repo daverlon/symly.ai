@@ -68,12 +68,12 @@ export default function ImagePanel({ images, onSelect, onAddToDesk }: ImagePanel
 
                 <div key={img.name} className="relative group w-20 h-20 flex-shrink-0">
                     {/* Click image to add to desk */}
-                    <img
-                        src={urls[img.name] || ""}
+                    {img && (<img
+                        src={urls[img.name]}
                         alt={img.name}
                         className="w-20 h-20 object-cover rounded cursor-pointer border border-slate-300 hover:border-blue-500"
                         onClick={() => onAddToDesk(sessionImageToDeskImage(img))}
-                    />
+                    />)}
                     {/* Hover button to preview */}
                     <button
                         className="absolute top-1 right-1
