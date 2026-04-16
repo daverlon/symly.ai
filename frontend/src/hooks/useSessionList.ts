@@ -22,7 +22,7 @@ export function useSessionList(
                 const msg = e instanceof Error ? e.message : "Failed to load sessions.";
                 alert(msg);
             });
-    });
+    }, [isSidebarOpen]);
 
     return {sessions, setSessions};
 }
