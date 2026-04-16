@@ -95,50 +95,78 @@ export default function Dashboard() {
     useCheckToken(navigate, setLoading);
 
     async function addDeskImage(deskImage: DeskImage) {
-        // assuming desk image data passed into this function is valid
-
         if (!sessionId) return;
-        setDeskImages((prev) => {
-            return [...prev, deskImage]
+
+        setDeskImages(prev => {
+            const nextIndex = prev.length;
+
+            const imageWithIndex = {
+                ...deskImage,
+                position: nextIndex
+            };
+
+            return [...prev, imageWithIndex];
         });
-        if (deskImages.length > 0) {
-            const firstImg = deskImages.at(0);
-            deskImageRefs.current[firstImg!.name]?.scrollIntoView({
-                behavior: "smooth",
-                block: "nearest",
-                inline: "center",
-            });
-        }
-        //
 
         try {
-            const res = saveDeskImage(sessionId, deskImage);
+            const res = await saveDeskImage(sessionId, deskImage);
+
+            setDeskImages(prev =>
+                prev.map(img =>
+                    img.name === deskImage.name
+                        ? { ...img, position: res.position }
+                        : img
+                )
+            );
+            console.log("Added desk image with synced position: " + res.position);
 
         } catch (e) {
-            alert("Failed to save desk image to session.");
+            console.error(e);
         }
     }
 
     async function removeDeskImage(deskImage: DeskImage) {
-
         if (!sessionId) return;
 
-        setDeskImages(prev =>
-            prev.filter(img => img.name !== deskImage.uid)
-        );
+        let removedIndex = -1;
 
-        if (deskImages.length > 0) {
-            deskImageRefs.current[deskImages.length-1]?.scrollIntoView({
-                behavior: "smooth",
-                block: "nearest",
-                inline: "center",
-            });
-        }
+        setDeskImages(prev => {
+            const index = prev.findIndex(img => img.uid === deskImage.uid);
+            removedIndex = index;
+
+            return prev.filter(img => img.uid !== deskImage.uid);
+        });
+
         try {
-            const res = deleteDeskImage(sessionId, deskImage);
+            await deleteDeskImage(sessionId, deskImage);
+
         } catch (e) {
-            alert("Failed to save desk image to session.");
+            alert("Failed to delete desk image.");
         }
+
+        // wait for state update to apply
+        setTimeout(() => {
+            setDeskImages(prev => {
+                if (prev.length === 0) return prev;
+
+                const scrollToIndex =
+                    removedIndex >= prev.length
+                        ? prev.length - 1
+                        : removedIndex;
+
+                const img = prev[scrollToIndex];
+
+                if (img) {
+                    deskImageRefs.current[img.name]?.scrollIntoView({
+                        behavior: "smooth",
+                        block: "nearest",
+                        inline: "center",
+                    });
+                }
+
+                return prev;
+            });
+        }, 0);
     }
 
     async function handleSignOut() {
@@ -153,7 +181,7 @@ export default function Dashboard() {
 
     async function handleCreateSession() {
         try {
-            await createSession(); // create it on the server
+            const sessionId = await createSession(); // create it on the server
             const refreshedSessions = await listSessions(); // fetch the full, updated list
             setSessions(
                 refreshedSessions.sort(
@@ -161,7 +189,7 @@ export default function Dashboard() {
                 )
             );
             if (refreshedSessions.length > 0) {
-                navigate("/dashboard") // change session by navigating to the new id?
+                navigate(`/dashboard/s/${sessionId.id}`) // change session by navigating to the new id?
             }
         } catch (e) {
             const msg = e instanceof Error ? e.message : "Failed to create session.";
@@ -364,7 +392,6 @@ export default function Dashboard() {
                         <div className="flex h-full items-center gap-10 w-max">
                             <div className="shrink-0 w-[40vw]" />
 
-                            {/* {deskImages.map((img) => { */}
                             {deskImages.map((img, index) => {
                                 const isSelected = selectedIndex === index;
                                 const src = blobUrls[img.name];
@@ -372,7 +399,7 @@ export default function Dashboard() {
 
                                 return (
                                     <div
-                                        key={index}
+                                        key={img.uid}
                                         className="relative group flex-shrink-0"
                                         onClick={(e) => {
                                             e.stopPropagation();

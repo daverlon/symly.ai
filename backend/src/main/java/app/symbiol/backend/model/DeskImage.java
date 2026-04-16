@@ -9,8 +9,13 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 @Entity
+@Table(
+    uniqueConstraints = @UniqueConstraint(columnNames = {"session_id", "position"})
+)
 public class DeskImage {
 
     @Id
@@ -29,6 +34,7 @@ public class DeskImage {
     @Column(nullable = false, length=255)
     private String uid;
 
+    @Column(nullable = false)
     int position; // left->right starting from 0
 
     protected DeskImage() {
@@ -50,5 +56,8 @@ public class DeskImage {
     }
 
     public String getUid() { return this.uid; }
+
+    public int getPosition() { return this.position; }
+    public void setPosition(int position) { this.position = position; }
 
 }

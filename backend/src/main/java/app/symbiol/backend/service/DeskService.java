@@ -13,6 +13,7 @@ import app.symbiol.backend.model.Session;
 import app.symbiol.backend.repository.DeskImageRepository;
 import app.symbiol.backend.repository.ImageRepository;
 import app.symbiol.backend.repository.SessionRepository;
+import jakarta.transaction.Transactional;
 
 @Service
 public class DeskService {
@@ -39,7 +40,8 @@ public class DeskService {
         return deskImages;
     }
 
-    public void createDeskImage(String publicSessionId, DeskImageDto data) {
+    @Transactional
+    public int createDeskImage(String publicSessionId, DeskImageDto data) {
 
         Session s = sessionRepository.findByPublicId(publicSessionId)
             .orElseThrow(() -> new SessionNotFoundException(publicSessionId));
@@ -47,12 +49,24 @@ public class DeskService {
         Image i = imageRepository.findByFileName(data.getName())
             .orElseThrow(() -> new ImageNotFoundException(publicSessionId));
 
-        DeskImage image = new DeskImage(
-            s, i, data.getPosition()
-        );
+
+        DeskImage image = new DeskImage(s, i, -1);
+
+        deskImageRepository.findTopBySessionIdOrderByPositionDesc(s.getId())
+            .ifPresentOrElse(
+                img -> {
+                    int position = img.getPosition();
+                    image.setPosition(position + 1000);
+                },
+                () -> {
+                    image.setPosition(1000);
+                }
+            );
         deskImageRepository.save(image);
+        return image.getPosition();
     }
 
+    @Transactional
     public void deleteAllDeskImages(String publicSessionId) {
         Session s = sessionRepository.findByPublicId(publicSessionId)
                 .orElseThrow(() -> new SessionNotFoundException(publicSessionId));

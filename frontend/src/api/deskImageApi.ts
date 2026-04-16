@@ -1,8 +1,11 @@
 import { API_BASE, requireJwt } from "./accountsApi";
 import type { DeskImage } from "./imageApi";
 
+type DeskImageResponseDto = {
+    position: number
+} 
 
-export async function saveDeskImage(sessionId: string, img: DeskImage): Promise<string> {
+export async function saveDeskImage(sessionId: string, img: DeskImage): Promise<DeskImageResponseDto> {
     const jwt = requireJwt();
 
     const response = await fetch(`${API_BASE}/sessions/${sessionId}/desk-images`, {
@@ -18,7 +21,7 @@ export async function saveDeskImage(sessionId: string, img: DeskImage): Promise<
         throw new Error(await response.text());
     }
 
-    return response.text();
+    return response.json();
 }
 
 export async function deleteDeskImage(sessionId: string, img: DeskImage): Promise<string> {

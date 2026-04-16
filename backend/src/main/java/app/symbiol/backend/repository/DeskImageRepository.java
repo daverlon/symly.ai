@@ -1,6 +1,7 @@
 package app.symbiol.backend.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -11,6 +12,8 @@ import app.symbiol.backend.model.DeskImage;
 public interface DeskImageRepository extends JpaRepository<DeskImage, Long> {
 
     List<DeskImage> findAllBySessionId(long sessionId);
+
+    Optional<DeskImage> findTopBySessionIdOrderByPositionDesc(long sessionId);
 
     void deleteByUid(String uid);
 
