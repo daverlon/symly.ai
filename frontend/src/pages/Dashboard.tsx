@@ -18,8 +18,8 @@ import { useLoadSessionImages } from "../hooks/useLoadSessionImages"
 import { useHandleSessionChange } from "../hooks/useHandleSessionChange"
 import { useSessionList } from "../hooks/useSessionList"
 import { useLoadSessionData } from "../hooks/useLoadSessionData"
-import LoginModal from "./LoginModal"
-import SignupModal from "./SignupModal"
+import LoginModal from "../components/LoginModal"
+import SignupModal from "../components/SignupModal"
 import { isAuthError } from "../api/apiErrors"
 
 
@@ -312,9 +312,11 @@ export default function Dashboard() {
                     <button
                         type="button"
                         onClick={() => {
-                            requireAuth(() => {
-                                setSidebarOpen((v) => !v)
-                            });
+                            if (isAuthenticated !== true) {
+                                openAuth("login");
+                                return;
+                            }
+                            setSidebarOpen((v) => !v)
                         }}
                         className="w-9 h-9 rounded-md flex items-center justify-center hover:bg-slate-200"
                         aria-label="Open sessions sidebar"

@@ -1,4 +1,7 @@
-export function isAuthError(err: any): boolean {
-    const msg = err?.message?.toLowerCase?.() ?? "";
-    return msg.includes("not authenticated") || msg.includes("unauthorized");
+export function isAuthError(e: any): boolean {
+    return (
+        e?.status === 401 ||
+        e?.response?.status === 401 ||
+        e?.message?.toLowerCase?.().includes("unauthorized")
+    );
 }

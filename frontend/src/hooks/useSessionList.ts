@@ -24,11 +24,12 @@ export function useSessionList(
                 // alert(msg);
                   if (isAuthError(e)) {
                     openAuth("login");
+                    setSessions([]);
                     return;
                 }
                 console.error(e);
             });
-    }, [isSidebarOpen]);
+    }, [isSidebarOpen, openAuth]);
 
     return {sessions, setSessions};
 }
