@@ -51,15 +51,15 @@ export async function fetchSessionImages(token: string, publicSessionId: string)
         }
     });
 
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText);
-    }
-
-    if (response.status == 204) {
+    if (response.status === 204) {
         // no images
         console.log("No images found for session.");
         return []; 
+    }
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
     }
 
     return await response.json();

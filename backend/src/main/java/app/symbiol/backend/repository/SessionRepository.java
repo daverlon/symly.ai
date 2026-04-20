@@ -20,5 +20,7 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
     Optional<Session> findByPublicId(String publicId);
 
     Optional<Session> findByPublicIdAndAccount(String publicId, Account account);
+
+    Optional<Session> findByPublicIdAndAccount_Username(String publicId, String username);
 }
 

@@ -27,6 +27,7 @@ import app.symbiol.backend.dto.SessionIdDto;
 import app.symbiol.backend.dto.SessionImageDto;
 import app.symbiol.backend.dto.UploadSessionDto;
 import app.symbiol.backend.dto.UploadSessionKeyDto;
+import app.symbiol.backend.exception.ImageNotFoundException;
 import app.symbiol.backend.exception.InvalidUploadImageTypeException;
 import app.symbiol.backend.exception.SessionNotFoundException;
 import app.symbiol.backend.model.DeskImage;
@@ -168,7 +169,7 @@ public class SessionController {
         deskService.deleteAllDeskImages(publicSessionId);
 
         sessionService.deleteUploadKey(publicSessionId);
-        List<String> fileNames = imageUploadService.getAllImageKeysForPublicSessionId(publicSessionId);
+        List<String> fileNames = imageUploadService.getAllImagesForSessionAndUser(publicSessionId, username) .stream().map(Image::getFileName).toList();
         imageUploadService.deleteAllImagesForPublicSessionId(publicSessionId);
         for (String fn : fileNames) {
             imageStorageService.delete(fn);
@@ -186,7 +187,7 @@ public class SessionController {
         for (String pId : ids) {
             deskService.deleteAllDeskImages(pId);
             sessionService.deleteUploadKey(pId);
-            List<String> fileNames = imageUploadService.getAllImageKeysForPublicSessionId(pId);
+            List<String> fileNames = imageUploadService.getAllImagesForSessionAndUser(pId, username).stream().map(Image::getFileName).toList();
             imageUploadService.deleteAllImagesForPublicSessionId(pId);
             for (String fn : fileNames) {
                 imageStorageService.delete(fn);
@@ -202,27 +203,33 @@ public class SessionController {
 
     @GetMapping("/sessions/{publicSessionId}/images")
     public ResponseEntity<List<SessionImageDto>> getAllSessionImages(
-        @PathVariable String publicSessionId,
-        Authentication auth
-    ) {
-        List<Image> images = imageUploadService.getAllImagesForPublicSessionId(publicSessionId);
+            @PathVariable String publicSessionId,
+            Authentication auth) {
+        String username = auth.getName();
+
+        sessionService.findSessionForUsername(publicSessionId, username)
+                .orElseThrow(() -> new SessionNotFoundException(publicSessionId));
+
+        List<Image> images = imageUploadService.getAllImagesForSessionAndUser(publicSessionId, username);
+
         if (images.isEmpty()) {
             return ResponseEntity.noContent().build();
         }
 
         List<SessionImageDto> imageDtos = images.stream()
-            .map( i -> {
+                .map(i -> {
+                    String url = String.format(
+                            "http://localhost:8080/sessions/%s/images/%s",
+                            publicSessionId,
+                            i.getFileName());
 
-                String url = String.format("http://localhost:8080/sessions/%s/images/%s", publicSessionId, i.getFileName());
-
-                SessionImageDto dto = new SessionImageDto();
-                dto.setName(i.getFileName());
-                dto.setUploadDate(i.getUploadDate());
-                dto.setUrl(url);
-                return dto;
-            })
-            .collect(Collectors.toList());
-
+                    SessionImageDto dto = new SessionImageDto();
+                    dto.setName(i.getFileName());
+                    dto.setUploadDate(i.getUploadDate());
+                    dto.setUrl(url);
+                    return dto;
+                })
+                .toList();
 
         return ResponseEntity.ok(imageDtos);
     }
@@ -238,13 +245,19 @@ public class SessionController {
         // SessionImageDto dto = new SessionImageDto();
         // dto.setImage(imageStorageService.load(imageName));
         // dto.setName(imageName);
+        String username = auth.getName();
+
+        sessionService.findSessionForUsername(publicSessionId, username)
+                .orElseThrow(() -> new ImageNotFoundException(imageName));
+
+        Image img = imageUploadService.getImageForSessionAndFileName(publicSessionId, imageName);
+
         byte[] image = imageStorageService.load(imageName);
 
-
         return ResponseEntity.ok()
-            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + imageName + "\"")
-            .contentType(MediaType.IMAGE_PNG)
-            .body(image);
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + imageName + "\"")
+                .contentType(MediaType.IMAGE_PNG)
+                .body(image);
     }
     
 

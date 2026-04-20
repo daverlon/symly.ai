@@ -20,4 +20,6 @@ public interface ImageRepository extends JpaRepository<Image, Long> {
 
     Optional<Image> findByFileName(String fileName);
 
+    Optional<Image> findBySessionAndFileName(Session session, String fileName);
+
 }

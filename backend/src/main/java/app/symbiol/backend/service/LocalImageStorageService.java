@@ -24,7 +24,7 @@ public class LocalImageStorageService implements ImageStorageService {
     }
 
     @Override
-    public String save(byte[] data, String contentType) 
+    public String save(byte[] data, String contentType)
         throws InvalidUploadImageTypeException
     {
 

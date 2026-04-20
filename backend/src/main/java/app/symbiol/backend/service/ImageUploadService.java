@@ -11,7 +11,6 @@ import app.symbiol.backend.repository.ImageRepository;
 import app.symbiol.backend.repository.SessionRepository;
 import app.symbiol.backend.repository.UploadKeyRepository;
 
-import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -63,33 +62,47 @@ public class ImageUploadService {
         imageRepository.deleteBySession(s);
     }
 
-    @Transactional(readOnly = true)
-    public List<String> getAllImageKeysForPublicSessionId(
-        String publicSessionId
-    ) {
+    // @Transactional(readOnly = true)
+    // public List<String> getAllImageKeysForPublicSessionId(
+    //     String publicSessionId
+    // ) {
+    //     Session s = sessionRepository
+    //         .findByPublicId(publicSessionId)
+    //         .orElseThrow(() -> new SessionNotFoundException(publicSessionId));
+
+    //     List<Image> images = imageRepository.findBySession(s);
+
+    //     return images.stream().map(Image::getFileName).toList();
+    // }
+
+    @Transactional
+    public void deleteAllImagesForSessionAndUser(String publicSessionId, String username) {
+
         Session s = sessionRepository
-            .findByPublicId(publicSessionId)
+            .findByPublicIdAndAccount_Username(publicSessionId, username)
             .orElseThrow(() -> new SessionNotFoundException(publicSessionId));
 
-        List<Image> images = imageRepository.findBySession(s);
-
-        return images.stream().map(Image::getFileName).toList();
+        imageRepository.deleteBySession(s);
     }
 
     @Transactional(readOnly = true)
-    public List<Image> getAllImagesForPublicSessionId(String publicSessionId) {
+    public List<Image> getAllImagesForSessionAndUser(String publicSessionId, String username) {
         Session s = sessionRepository
-            .findByPublicId(publicSessionId)
-            .orElseThrow(() -> new SessionNotFoundException(publicSessionId));
+                .findByPublicIdAndAccount_Username(publicSessionId, username)
+                .orElseThrow(() -> new SessionNotFoundException(publicSessionId));
 
         return imageRepository.findBySession(s);
     }
 
     @Transactional(readOnly = true)
-    public Instant getImageDateForFileName(String fileName) {
-        Image i = imageRepository.findByFileName(fileName)
-            .orElseThrow(() -> new ImageNotFoundException(fileName));
+    public Image getImageForSessionAndFileName(String publicSessionId, String fileName) {
 
-        return i.getUploadDate();
+        Session s = sessionRepository
+                .findByPublicId(publicSessionId)
+                .orElseThrow(() -> new SessionNotFoundException(publicSessionId));
+
+        return imageRepository
+                .findBySessionAndFileName(s, fileName)
+                .orElseThrow(() -> new ImageNotFoundException(fileName));
     }
 }
