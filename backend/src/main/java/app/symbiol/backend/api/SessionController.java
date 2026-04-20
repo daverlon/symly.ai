@@ -96,8 +96,13 @@ public class SessionController {
     // todo - fetch images and desk stuff here instead
     @PostMapping("/sessions/{sessionId}/uploadKey")
     public ResponseEntity<UploadSessionKeyDto> createSessionUploadKey(
-        @PathVariable String sessionId
+        @PathVariable String sessionId,
+        Authentication auth
     ) {
+        String username = auth.getName();
+        Session s = sessionService.findSessionForUsername(sessionId, username)
+            .orElseThrow(() -> new SessionNotFoundException(sessionId));
+
         UploadSessionKeyDto key = sessionService.createUploadSessionKey(sessionId);
         return ResponseEntity.ok(key);
     }
