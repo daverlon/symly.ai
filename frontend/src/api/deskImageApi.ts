@@ -2,7 +2,8 @@ import { API_BASE, requireJwt } from "./accountsApi";
 import type { DeskImage } from "./imageApi";
 
 type DeskImageResponseDto = {
-    position: number
+    position: number,
+    uid: string
 } 
 
 export async function saveDeskImage(sessionId: string, img: DeskImage): Promise<DeskImageResponseDto> {

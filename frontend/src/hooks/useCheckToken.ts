@@ -1,15 +1,14 @@
 import { useEffect, useState } from "react";
-import type { NavigateFunction } from "react-router-dom";
 import { verifyToken } from "../api/accountsApi";
 
 export function useCheckToken(
-
-    navigate: NavigateFunction,
     setLoading: React.Dispatch<React.SetStateAction<boolean>>
     
 ) {
 
     const [username, setUsername] = useState<string | null>(null);
+
+    const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
     useEffect(() => {
 
@@ -17,17 +16,18 @@ export function useCheckToken(
             const token = localStorage.getItem("jwt");
 
             if (!token) {
-                navigate("/login");
+                setIsAuthenticated(false);
                 return;
             }
 
             try {
                 const result = await verifyToken(token);
                 setUsername(result.username);
+                setIsAuthenticated(true);
             } catch (err) {
                 console.error("Token verification failed.");
                 localStorage.removeItem("jwt");
-                navigate("/login");
+                setIsAuthenticated(false);
             } finally {
                 setLoading(false);
             }
@@ -35,7 +35,7 @@ export function useCheckToken(
 
         run();
 
-    }, [navigate, setUsername, setLoading]);
+    }, [setUsername, setLoading]);
 
-    return { username, setUsername };
+    return { username, setUsername, isAuthenticated, setIsAuthenticated };
 }

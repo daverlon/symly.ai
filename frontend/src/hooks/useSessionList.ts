@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { listSessions, type SessionId } from "../api/sessionsApi";
-
+import { isAuthError } from "../api/apiErrors";
 
 export function useSessionList(
-    isSidebarOpen: boolean
+    isSidebarOpen: boolean,
+    openAuth: (mode: "login" | "signup") => void
 ) {
 
     const [sessions, setSessions] = useState<SessionId[]>([]);
@@ -19,8 +20,13 @@ export function useSessionList(
                 setSessions(sorted);
             })
             .catch((e) => {
-                const msg = e instanceof Error ? e.message : "Failed to load sessions.";
-                alert(msg);
+                // const msg = e instanceof Error ? e.message : "Failed to load sessions.";
+                // alert(msg);
+                  if (isAuthError(e)) {
+                    openAuth("login");
+                    return;
+                }
+                console.error(e);
             });
     }, [isSidebarOpen]);
 

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { createUploadSessionKey, createSession, deleteAllSessions, deleteSession, listSessions } from "../api/sessionsApi"
 import { QRCodeSVG } from "qrcode.react"
@@ -18,6 +18,9 @@ import { useLoadSessionImages } from "../hooks/useLoadSessionImages"
 import { useHandleSessionChange } from "../hooks/useHandleSessionChange"
 import { useSessionList } from "../hooks/useSessionList"
 import { useLoadSessionData } from "../hooks/useLoadSessionData"
+import LoginModal from "./LoginModal"
+import SignupModal from "./SignupModal"
+import { isAuthError } from "../api/apiErrors"
 
 
 export default function Dashboard() {
@@ -42,8 +45,12 @@ export default function Dashboard() {
     const [deskImages, setDeskImages] = useState<DeskImage[]>([]);
     const [selectedIndex, setSelectedIndex] = useState<number | null>(0);
 
+    const { username, setUsername, isAuthenticated, setIsAuthenticated } = useCheckToken(setLoading);
+    const [authOpen, setAuthOpen] = useState(false);
+    const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+
     // independent hooks
-    const { sessions, setSessions } = useSessionList(sidebarOpen);
+    const { sessions, setSessions } = useSessionList(sidebarOpen, openAuth);
 
     const { sessionImages, setSessionImages } =
         useLoadSessionImages(activeSessionId);
@@ -64,6 +71,13 @@ export default function Dashboard() {
             return {};
         });
     }, [setSessionImages, setDeskImages, setBlobUrls]);
+
+    useEffect(() => {
+        if (isAuthenticated === false) {
+            clearSessionState();
+            navigate("/dashboard");
+        }
+    }, [isAuthenticated]);
 
     useHandleSessionChange(
         navigate,
@@ -92,16 +106,17 @@ export default function Dashboard() {
 
     useMouseDrag(deskScrollRef, deskImages);
 
-    useCheckToken(navigate, setLoading);
-
     async function addDeskImage(deskImage: DeskImage) {
         if (!sessionId) return;
+
+        const tempUid = crypto.randomUUID();
 
         setDeskImages(prev => {
             const nextIndex = prev.length;
 
             const imageWithIndex = {
                 ...deskImage,
+                uid: tempUid,
                 position: nextIndex
             };
 
@@ -111,13 +126,22 @@ export default function Dashboard() {
         try {
             const res = await saveDeskImage(sessionId, deskImage);
 
+            // setDeskImages(prev =>
+            //     prev.map(img =>
+            //         img.name === deskImage.name
+            //             ? { ...img, position: res.position, uid: res.uid }
+            //             : img
+            //     )
+            // );
+
             setDeskImages(prev =>
                 prev.map(img =>
-                    img.name === deskImage.name
-                        ? { ...img, position: res.position }
+                    img.uid === tempUid
+                        ? { ...img, ...res, uid: res.uid }
                         : img
                 )
             );
+
             console.log("Added desk image with synced position: " + res.position);
 
         } catch (e) {
@@ -168,10 +192,24 @@ export default function Dashboard() {
             });
         }, 0);
     }
+    
+    function openAuth(mode: "login" | "signup" = "login") {
+        setAuthMode(mode);
+        setAuthOpen(true);
+    }
+
+    function requireAuth(action: () => Promise<void> | void) {
+        if (!isAuthenticated) {
+            openAuth("login");
+            return;
+        }
+        void action();
+    }
 
     async function handleSignOut() {
         localStorage.removeItem("jwt");
-        navigate("/login");
+        setIsAuthenticated(false);
+        openAuth("login"); // optional: immediately show login again
     }
 
     const mobileUploadUrl = useMemo(() => {
@@ -180,34 +218,48 @@ export default function Dashboard() {
     }, [phoneToken]);
 
     async function handleCreateSession() {
-        try {
-            const sessionId = await createSession(); // create it on the server
-            const refreshedSessions = await listSessions(); // fetch the full, updated list
-            setSessions(
-                refreshedSessions.sort(
-                    (a, b) => new Date(b.creationDate).getTime() - new Date(a.creationDate).getTime()
-                )
-            );
-            if (refreshedSessions.length > 0) {
-                navigate(`/dashboard/s/${sessionId.id}`) // change session by navigating to the new id?
+        requireAuth(async () => {
+            try {
+                const sessionId = await createSession(); // create it on the server
+                const refreshedSessions = await listSessions(); // fetch the full, updated list
+                setSessions(
+                    refreshedSessions.sort(
+                        (a, b) => new Date(b.creationDate).getTime() - new Date(a.creationDate).getTime()
+                    )
+                );
+                if (refreshedSessions.length > 0) {
+                    navigate(`/dashboard/s/${sessionId.id}`) // change session by navigating to the new id?
+                }
+            } catch (e) {
+                // const msg = e instanceof Error ? e.message : "Failed to create session.";
+                // alert(msg);
+                 if (isAuthError(e)) {
+                    openAuth("login");
+                    return;
+                }
+                console.error(e);
             }
-        } catch (e) {
-            const msg = e instanceof Error ? e.message : "Failed to create session.";
-            alert(msg);
-        }
+        });
     }
 
     async function handleConnectPhone() {
-        if (activeSessionId == null) return;
+        requireAuth(async () => {
+            if (activeSessionId == null) return;
 
-        try {
-            const res = await createUploadSessionKey(activeSessionId);
-            setPhoneToken(res.key);
-            setQrOpen(true);
-        } catch (e) {
-            const msg = e instanceof Error ? e.message : "Failed to connect phone.";
-            alert(msg);
-        }
+            try {
+                const res = await createUploadSessionKey(activeSessionId);
+                setPhoneToken(res.key);
+                setQrOpen(true);
+            } catch (e) {
+                // const msg = e instanceof Error ? e.message : "Failed to connect phone.";
+                // alert(msg);
+                 if (isAuthError(e)) {
+                    openAuth("login");
+                    return;
+                }
+                console.error(e);   
+            }
+        });
     }
 
     async function handleDeleteSession(sessionId: string) {
@@ -223,8 +275,13 @@ export default function Dashboard() {
             navigate("/dashboard");
 
         } catch (e) {
-            const msg = e instanceof Error ? e.message : "Failed to delete session.";
-            alert(msg);
+            if (isAuthError(e)) {
+                openAuth("login");
+                return;
+            }
+            console.error(e);
+            // const msg = e instanceof Error ? e.message : "Failed to delete session.";
+            // alert(msg);
         }
     }
 
@@ -238,8 +295,13 @@ export default function Dashboard() {
             await deleteAllSessions();
             navigate("/dashboard");
         } catch (e) {
-            const msg = e instanceof Error ? e.message : "Failed to delete sessions.";
-            alert(msg);
+            if (isAuthError(e)) {
+                openAuth("login");
+                return;
+            }
+            console.error(e);
+            // const msg = e instanceof Error ? e.message : "Failed to delete sessions.";
+            // alert(msg);
         }
     }
 
@@ -249,7 +311,11 @@ export default function Dashboard() {
                 <div className="flex items-center gap-3">
                     <button
                         type="button"
-                        onClick={() => setSidebarOpen((v) => !v)}
+                        onClick={() => {
+                            requireAuth(() => {
+                                setSidebarOpen((v) => !v)
+                            });
+                        }}
                         className="w-9 h-9 rounded-md flex items-center justify-center hover:bg-slate-200"
                         aria-label="Open sessions sidebar"
                     >
@@ -278,9 +344,15 @@ export default function Dashboard() {
                         <Camera size={18} className="text-slate-700" />
                     </button>
                     <button
-                        onClick={handleSignOut}
+                        onClick={() => {
+                            if (isAuthenticated) {
+                                handleSignOut();
+                            } else {
+                                openAuth("login");
+                            }
+                        }}
                         className="w-9 h-9 rounded-md flex items-center justify-center hover:bg-slate-200"
-                        aria-label="Sign out"
+                        aria-label={isAuthenticated ? "Sign out" : "Sign in"}
                     >
                         <LogOut size={18} className="text-slate-700" />
                     </button>
@@ -322,7 +394,7 @@ export default function Dashboard() {
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        navigate("/dashboard/s/"+s.id);
+                                        navigate("/dashboard/s/" + s.id);
                                         setSidebarOpen(false);
                                     }}
                                     className="flex-1 text-left"
@@ -566,6 +638,37 @@ export default function Dashboard() {
                     </div>
                 </div>
             )}
+
+            {authOpen && (
+                <div
+                    className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center"
+                    onClick={() => setAuthOpen(false)}
+                >
+                    <div
+                        className="bg-white rounded-xl p-6 w-full max-w-sm"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {authMode === "login" ? (
+                            <LoginModal
+                                onSuccess={() => {
+                                    setIsAuthenticated(true);
+                                    setAuthOpen(false);
+                                }}
+                                onSwitch={() => setAuthMode("signup")}
+                            />
+                        ) : (
+                            <SignupModal
+                                onSuccess={() => {
+                                    setAuthMode("login");
+                                    setAuthOpen(true);
+                                }}
+                                onSwitch={() => setAuthMode("login")}
+                            />
+                        )}
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 }
