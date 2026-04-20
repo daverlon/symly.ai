@@ -42,8 +42,8 @@ public class DeskController {
     ) {
 
         // ignore the position sent by the frontend for now, recalculate it in the service
-        int position = deskService.createDeskImage(publicSessionId, dto);
-        return ResponseEntity.ok().body(new DeskImageResponseDto(position));
+        DeskImageResponseDto ret = deskService.createDeskImage(publicSessionId, dto);
+        return ResponseEntity.ok().body(ret);
     }
 
     // this skips service layer- todo: add this to service layer
