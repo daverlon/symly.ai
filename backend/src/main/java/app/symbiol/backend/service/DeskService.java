@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import app.symbiol.backend.dto.DeskImageDto;
+import app.symbiol.backend.dto.DeskImageResponseDto;
 import app.symbiol.backend.exception.ImageNotFoundException;
 import app.symbiol.backend.exception.SessionNotFoundException;
 import app.symbiol.backend.model.DeskImage;
@@ -41,7 +42,7 @@ public class DeskService {
     }
 
     @Transactional
-    public int createDeskImage(String publicSessionId, DeskImageDto data) {
+    public DeskImageResponseDto createDeskImage(String publicSessionId, DeskImageDto data) {
 
         Session s = sessionRepository.findByPublicId(publicSessionId)
             .orElseThrow(() -> new SessionNotFoundException(publicSessionId));
@@ -63,7 +64,7 @@ public class DeskService {
                 }
             );
         deskImageRepository.save(image);
-        return image.getPosition();
+        return new DeskImageResponseDto(image.getPosition(), image.getUid());
     }
 
     @Transactional
