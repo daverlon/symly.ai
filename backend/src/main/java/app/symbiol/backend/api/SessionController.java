@@ -2,7 +2,6 @@ package app.symbiol.backend.api;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.springframework.security.core.Authentication;
