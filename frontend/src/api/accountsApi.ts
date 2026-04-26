@@ -1,79 +1,40 @@
-export const API_BASE = "http://localhost:8080";
+import { API_BASE, getToken, requireToken } from "./client";
 
-type SignupResponse = {
-    message: string
-}
+export { API_BASE, requireToken as requireJwt };
 
-type LoginResponse = {
-  token: string
-}
-
-type AuthVerificationResponse = {
-    username: string
-}
-
-export function requireJwt() {
-    const token = localStorage.getItem("jwt");
-    if (!token) {
-        throw new Error("Not authenticated");
-    }
-    return token;
-}
+type SignupResponse = { message: string };
+type LoginResponse = { token: string };
+type AuthVerificationResponse = { username: string };
 
 export async function signupAccount(username: string, password: string): Promise<SignupResponse> {
-    const response = await fetch(`${API_BASE}/accounts`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({username, password})
+    const res = await fetch(`${API_BASE}/accounts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
     });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText);
-    }
-    return await response.json();
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
 }
 
 export async function loginAccount(username: string, password: string): Promise<LoginResponse> {
-    const response = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({username, password})
+    const res = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
     });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText);
-    }
-    return await response.json();
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
 }
 
 export async function verifyToken(token: string): Promise<AuthVerificationResponse> {
-    const response = await fetch(`${API_BASE}/auth/verify`, {
-        method: 'GET',
-        headers: {
-            'Authorization': `Bearer ${token}`
-        }
+    const res = await fetch(`${API_BASE}/auth/verify`, {
+        headers: { Authorization: `Bearer ${token}` },
     });
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText);
-    }
-    return await response.json();
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
 }
 
-
 export function getSessionEventSource(publicSessionId: string | null): EventSource | null {
-    const u = `${API_BASE}/stream/${publicSessionId}`;
-    console.log("Setting sse for " + u)
-    if (publicSessionId) { 
-        return new EventSource(u);
-    }
-    else {
-        return null;
-    }
+    if (!publicSessionId) return null;
+    return new EventSource(`${API_BASE}/stream/${publicSessionId}`);
 }

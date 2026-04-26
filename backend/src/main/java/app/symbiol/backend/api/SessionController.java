@@ -256,10 +256,10 @@ public class SessionController {
 
         Image img = imageUploadService.getImageForSessionAndFileName(publicSessionId, imageName);
 
-        byte[] image = imageStorageService.load(imageName);
+        byte[] image = imageStorageService.load(img.getFileName());
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + imageName + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + img.getFileName() + "\"")
                 .contentType(MediaType.IMAGE_PNG)
                 .body(image);
     }

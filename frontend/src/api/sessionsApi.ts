@@ -1,7 +1,5 @@
-import { requireJwt } from "./accountsApi";
+import { API_BASE, authHeaders } from "./client";
 import type { DeskImage } from "./imageApi";
-
-const API_BASE = "http://localhost:8080";
 
 export type SessionId = {
     id: string;
@@ -13,111 +11,53 @@ export type UploadSessionKeyResponse = {
     uploadUrl: string;
 };
 
-// for key -> jwt exchange
-// see UploadSessionJwtDto
-export type UploadSessionValidateResponse = {
-    uploadSessionJwt: string;
-    sessionId: number;
-};
-
 export type SessionDto = {
     creationDate: string;
     deskImages: DeskImage[];
-}
+};
 
 export async function listSessions(): Promise<SessionId[]> {
-    const jwt = requireJwt();
-
-    const response = await fetch(`${API_BASE}/sessions`, {
-        method: "GET",
-        headers: {
-            Authorization: `Bearer ${jwt}`,
-        },
-    });
-
-    if (!response.ok) {
-        throw new Error(await response.text());
-    }
-
-    return response.json();
+    const res = await fetch(`${API_BASE}/sessions`, { headers: authHeaders() });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
 }
 
 export async function createSession(): Promise<SessionId> {
-    const jwt = requireJwt();
-
-    const response = await fetch(`${API_BASE}/sessions`, {
+    const res = await fetch(`${API_BASE}/sessions`, {
         method: "POST",
-        headers: {
-            Authorization: `Bearer ${jwt}`,
-        },
+        headers: authHeaders(),
     });
-
-    if (!response.ok) {
-        throw new Error(await response.text());
-    }
-
-    return response.json();
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
 }
 
 export async function createUploadSessionKey(sessionId: string): Promise<UploadSessionKeyResponse> {
-    const jwt = requireJwt();
-
-    const response = await fetch(`${API_BASE}/sessions/${sessionId}/uploadKey`, {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/uploadKey`, {
         method: "POST",
-        headers: {
-            Authorization: `Bearer ${jwt}`,
-        },
+        headers: authHeaders(),
     });
-
-    if (!response.ok) {
-        throw new Error(await response.text());
-    }
-
-    return response.json();
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
-    const jwt = requireJwt();
-
-    const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
         method: "DELETE",
-        headers: {
-            Authorization: `Bearer ${jwt}`,
-        },
+        headers: authHeaders(),
     });
-
-    if (!response.ok) {
-        throw new Error(await response.text());
-    }
+    if (!res.ok) throw new Error(await res.text());
 }
 
 export async function deleteAllSessions(): Promise<void> {
-    const jwt = requireJwt();
-
-    const response = await fetch(`${API_BASE}/sessions`, {
+    const res = await fetch(`${API_BASE}/sessions`, {
         method: "DELETE",
-        headers: {
-            Authorization: `Bearer ${jwt}`,
-        },
+        headers: authHeaders(),
     });
-
-    if (!response.ok) {
-        throw new Error(await response.text());
-    }
+    if (!res.ok) throw new Error(await res.text());
 }
 
 export async function getSessionData(sessionId: string): Promise<SessionDto | null> {
-    const jwt = requireJwt();
-    const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {
-        method: "GET",
-        headers: {
-            Authorization: `Bearer ${jwt}`,
-        },
-    });
-
-    if (!response.ok) {
-        return null;
-    }
-
-    return response.json();
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}`, { headers: authHeaders() });
+    if (!res.ok) return null;
+    return res.json();
 }

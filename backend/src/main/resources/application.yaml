@@ -2,6 +2,9 @@ spring:
   application:
     name: symbiol
 
+  profiles:
+    active: dev
+
   datasource:
     url: ${DB_URL}
     username: ${DB_USER}
@@ -15,3 +18,15 @@ spring:
   jwt:
     secret: ${JWT_SECRET}
     expiration: ${JWT_EXPIRATION}
+
+mathpix:
+  app-id: ${MATHPIX_APP_ID:}
+  app-key: ${MATHPIX_APP_KEY:}
+
+# Optional: set LOCAL_OCR_URL (e.g. http://localhost:8000) to route OCR
+# requests to the local PP-OCRv5 service instead of Mathpix.
+local-ocr:
+  url: ${LOCAL_OCR_URL:}
+
+gemini:
+  api-key: ${GEMINI_API_KEY}

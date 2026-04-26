@@ -1,23 +1,28 @@
 import { useEffect, useRef, useState } from "react";
-import { Expand, Plus } from "lucide-react";
+import { Expand, Plus, Loader2 } from "lucide-react";
 import type { DeskImage, SessionImage } from "../api/imageApi";
+import { uploadImageFile } from "../api/imageApi";
+import { createUploadSessionKey } from "../api/sessionsApi";
 
 interface ImagePanelProps {
+    sessionId: string | null;
     images: SessionImage[];
     onSelect: (blobUrl: string) => void;
     onAddToDesk: (image: DeskImage) => void;
 }
 
 function sessionImageToDeskImage(si: SessionImage): DeskImage {
-    const ret: DeskImage = {
+    return {
         name: si.name,
-        position: -1
-    }
-    return ret;
+        position: -1,
+        uid: "",  // replaced with server-assigned uid after addDeskImage resolves
+    };
 }
 
-export default function ImagePanel({ images, onSelect, onAddToDesk }: ImagePanelProps) {
+export default function ImagePanel({ sessionId, images, onSelect, onAddToDesk }: ImagePanelProps) {
     const [urls, setUrls] = useState<Record<string, string>>({}); // map filename -> blob URL
+    const [uploading, setUploading] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -43,24 +48,59 @@ export default function ImagePanel({ images, onSelect, onAddToDesk }: ImagePanel
         };
     }, [images]);
 
+    async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+        const files = Array.from(e.target.files ?? []);
+        if (!files.length || !sessionId) return;
+
+        setUploading(true);
+        setUploadError(null);
+
+        try {
+            const { key } = await createUploadSessionKey(sessionId);
+            await Promise.all(files.map((f) => uploadImageFile(key, f)));
+        } catch {
+            setUploadError("Upload failed — please try again.");
+        } finally {
+            setUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+        }
+    }
+
     return (
-        <div className="flex gap-2 overflow-x-auto p-2 border-t border-slate-200 bg-white/80">
+        <div className="flex flex-col gap-0">
+            {uploadError && (
+                <div className="px-3 py-1.5 text-xs text-red-600 bg-red-50 border-b border-red-100">
+                    {uploadError}
+                </div>
+            )}
+            <div className="flex gap-2 overflow-x-auto p-2 border-t border-slate-200 bg-white/80">
             <div
                 key="__upload__"
-                className="relative w-20 h-20 flex-shrink-0 rounded border-2 border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50 cursor-pointer flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-blue-500 transition-colors"
-                onClick={() => fileInputRef.current?.click()}
+                className={`relative w-20 h-20 flex-shrink-0 rounded border-2 border-dashed transition-colors flex flex-col items-center justify-center gap-1 ${
+                    uploading
+                        ? "border-blue-300 bg-blue-50 cursor-default text-blue-400"
+                        : "border-slate-300 hover:border-blue-400 hover:bg-blue-50 cursor-pointer text-slate-400 hover:text-blue-500"
+                }`}
+                onClick={() => { if (!uploading) fileInputRef.current?.click(); }}
             >
-                <Plus size={20} />
-                <span className="text-[10px] font-medium">Upload</span>
+                {uploading ? (
+                    <>
+                        <Loader2 size={20} className="animate-spin" />
+                        <span className="text-[10px] font-medium">Uploading…</span>
+                    </>
+                ) : (
+                    <>
+                        <Plus size={20} />
+                        <span className="text-[10px] font-medium">Upload</span>
+                    </>
+                )}
                 <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
                     multiple
                     className="hidden"
-                    onChange={(e) => {
-                        // handle e.target.files
-                    }}
+                    onChange={handleFileChange}
                 />
             </div>
             {images.map((img) => (
@@ -91,6 +131,7 @@ export default function ImagePanel({ images, onSelect, onAddToDesk }: ImagePanel
                     </button>
                 </div>
             ))}
+        </div>
         </div>
     );
 }

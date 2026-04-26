@@ -1,66 +1,30 @@
-const API_BASE = "http://localhost:8080";
-
-type ImageUploadResponseDto = {
-    responseText: string
-}
+import { API_BASE, authHeaders } from "./client";
 
 export type SessionImage = {
-    name: string,
-    uploadDate: string,
-    url: string,
-
-    // todo: image size?
-    // tags?
+    name: string;
+    uploadDate: string;
+    url: string;
 };
 
 export type DeskImage = {
-    name: string
-    position: number
-    uid: string
-}
+    name: string;
+    position: number;
+    uid: string;
+};
 
-export async function uploadImageFile(uploadKey: string, file: File): Promise<ImageUploadResponseDto> {
-
-
-    // public session id
-
-
+export async function uploadImageFile(uploadKey: string, file: File): Promise<{ responseText: string }> {
     const formData = new FormData();
     formData.append("file", file);
-
-    const response = await fetch(`${API_BASE}/u/${uploadKey}`, {
-        method: 'POST',
-        headers: {
-            // 'Content-Type': ''
-        },
-        body: formData
-    });
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText);
-    }
-    return await response.json();
+    const res = await fetch(`${API_BASE}/u/${uploadKey}`, { method: "POST", body: formData });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
 }
 
 export async function fetchSessionImages(token: string, publicSessionId: string): Promise<SessionImage[]> {
-
-    const response = await fetch(`${API_BASE}/sessions/${publicSessionId}/images`, {
-        method: 'GET',
-        headers: {
-            'Authorization': `Bearer ${token}`
-        }
+    const res = await fetch(`${API_BASE}/sessions/${publicSessionId}/images`, {
+        headers: { Authorization: `Bearer ${token}` },
     });
-
-    if (response.status === 204) {
-        // no images
-        console.log("No images found for session.");
-        return []; 
-    }
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText);
-    }
-
-    return await response.json();
+    if (res.status === 204) return [];
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
 }

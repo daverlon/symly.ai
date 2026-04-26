@@ -26,6 +26,15 @@ public class Image {
     @Column(nullable=false, length=255)
     private String fileName; // including extension
 
+    @Column(columnDefinition = "TEXT")
+    private String ocrText; // cached Mathpix flat text result
+
+    @Column(columnDefinition = "TEXT")
+    private String ocrLineData; // cached Mathpix line_data JSON (spatial layout)
+
+    @Column(columnDefinition = "TEXT")
+    private String ocrWordData; // cached Mathpix word_data JSON (word-level bounding boxes)
+
     @ManyToOne(optional = false)
     @JoinColumn(name = "session_id")
     private Session session;
@@ -57,8 +66,31 @@ public class Image {
     }
 
     public Instant getUploadDate() {
-
         return this.uploadDate;
+    }
+
+    public String getOcrText() {
+        return ocrText;
+    }
+
+    public void setOcrText(String ocrText) {
+        this.ocrText = ocrText;
+    }
+
+    public String getOcrLineData() {
+        return ocrLineData;
+    }
+
+    public void setOcrLineData(String ocrLineData) {
+        this.ocrLineData = ocrLineData;
+    }
+
+    public String getOcrWordData() {
+        return ocrWordData;
+    }
+
+    public void setOcrWordData(String ocrWordData) {
+        this.ocrWordData = ocrWordData;
     }
 
 }

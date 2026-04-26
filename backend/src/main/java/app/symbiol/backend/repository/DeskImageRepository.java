@@ -13,7 +13,11 @@ public interface DeskImageRepository extends JpaRepository<DeskImage, Long> {
 
     List<DeskImage> findAllBySessionId(long sessionId);
 
+    List<DeskImage> findAllBySessionIdOrderByPositionAsc(long sessionId);
+
     Optional<DeskImage> findTopBySessionIdOrderByPositionDesc(long sessionId);
+
+    Optional<DeskImage> findByUidAndSessionId(String uid, Long sessionId);
 
     void deleteByUid(String uid);
 

@@ -12,7 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 public class AccountService {
-    public final AccountRepository accountRepository;
+    private final AccountRepository accountRepository;
 
     private final PasswordEncoder passwordEncoder;
 

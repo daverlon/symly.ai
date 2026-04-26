@@ -1,5 +1,6 @@
 package app.symbiol.backend.api;
 
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,15 +17,15 @@ import lombok.extern.slf4j.Slf4j;
 @RequestMapping("/accounts")
 public class AccountController {
 
-    public final AccountService accountService;
+    private final AccountService accountService;
 
     public AccountController(AccountService accountService) {
         this.accountService = accountService;
     }
 
     @PostMapping
-    public ResponseEntity<SignupResponseDto> createaccount(@RequestBody AccountDto dto) {
-        log.info("Attempt to create account with username " + dto.getUsername());
+    public ResponseEntity<SignupResponseDto> createAccount(@Valid @RequestBody AccountDto dto) {
+        log.info("Attempt to create account with username {}", dto.getUsername());
         accountService.createAccount(dto.getUsername(), dto.getPassword());
         return ResponseEntity.ok().body(new SignupResponseDto("Account created."));
     }

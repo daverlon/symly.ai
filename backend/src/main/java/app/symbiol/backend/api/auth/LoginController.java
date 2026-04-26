@@ -1,5 +1,6 @@
 package app.symbiol.backend.api.auth;
 
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,8 +16,8 @@ import app.symbiol.backend.service.AccountService;
 @RequestMapping("/auth/login")
 public class LoginController {
 
-    public final AccountService accountService;
-    public final JwtService jwtService;
+    private final AccountService accountService;
+    private final JwtService jwtService;
 
     public LoginController(AccountService accountService, JwtService jwtService) {
         this.accountService = accountService;
@@ -24,10 +25,9 @@ public class LoginController {
     }
 
     @PostMapping
-    public ResponseEntity<LoginJwtDto> login(@RequestBody AccountDto dto) {
+    public ResponseEntity<LoginJwtDto> login(@Valid @RequestBody AccountDto dto) {
         accountService.authenticateAccount(dto.getUsername(), dto.getPassword());
         String jwt = jwtService.generateToken(dto.getUsername());
         return ResponseEntity.ok(new LoginJwtDto(jwt));
     }
-    
 }

@@ -4,32 +4,28 @@ import { isAuthError } from "../api/apiErrors";
 
 export function useSessionList(
     isSidebarOpen: boolean,
-    openAuth: (mode: "login" | "signup") => void
+    onAuthError: () => void,
 ) {
-
     const [sessions, setSessions] = useState<SessionId[]>([]);
 
     useEffect(() => {
         if (!isSidebarOpen) return;
         listSessions()
-            .then((fetchedSessions) => {
-                // Convert to Date objects and sort newest first
-                const sorted = fetchedSessions
+            .then((fetched) => {
+                const sorted = fetched
                     .slice()
                     .sort((a, b) => new Date(b.creationDate).getTime() - new Date(a.creationDate).getTime());
                 setSessions(sorted);
             })
             .catch((e) => {
-                // const msg = e instanceof Error ? e.message : "Failed to load sessions.";
-                // alert(msg);
-                  if (isAuthError(e)) {
-                    openAuth("login");
+                if (isAuthError(e)) {
                     setSessions([]);
+                    onAuthError();
                     return;
                 }
                 console.error(e);
             });
-    }, [isSidebarOpen, openAuth]);
+    }, [isSidebarOpen]); // onAuthError intentionally excluded — stable via useCallback at call site
 
-    return {sessions, setSessions};
+    return { sessions, setSessions };
 }
