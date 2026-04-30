@@ -2,6 +2,7 @@ import { Plus, X } from "lucide-react";
 import type { SessionId } from "../../api/sessionsApi";
 
 interface SessionSidebarProps {
+    isDark?: boolean;
     isOpen: boolean;
     sessions: SessionId[];
     activeSessionId: string | null;
@@ -13,6 +14,7 @@ interface SessionSidebarProps {
 }
 
 export function SessionSidebar({
+    isDark = false,
     isOpen,
     sessions,
     activeSessionId,
@@ -27,7 +29,7 @@ export function SessionSidebar({
             {/* Backdrop */}
             {isOpen && (
                 <div
-                    className="fixed inset-0 z-30 bg-slate-900/20"
+                    className={`fixed inset-0 z-30 ${isDark ? "bg-black/50" : "bg-slate-900/20"}`}
                     onClick={onClose}
                 />
             )}
@@ -35,12 +37,14 @@ export function SessionSidebar({
             {/* Drawer */}
             <aside
                 className={`fixed left-0 top-14 z-40 w-72 h-[calc(100vh-3.5rem)] bg-white/95 backdrop-blur border-r border-slate-200 transition-transform duration-200 ${
+                    isDark ? "bg-slate-900/95 border-slate-800" : "bg-white/95 border-slate-200"
+                } ${
                     isOpen ? "translate-x-0" : "-translate-x-full"
                 }`}
                 aria-label="Sessions sidebar"
             >
                 <div className="h-full flex flex-col">
-                    <div className="p-4 border-b border-slate-200">
+                    <div className={`p-4 border-b ${isDark ? "border-slate-800" : "border-slate-200"}`}>
                         <button
                             onClick={onCreateSession}
                             className="w-full rounded-lg bg-blue-600 text-white px-4 py-2 text-sm font-medium hover:bg-blue-500 flex items-center gap-2 justify-center"
@@ -56,8 +60,8 @@ export function SessionSidebar({
                                 key={s.id}
                                 className={`group flex items-center justify-between rounded-lg px-2 py-1.5 ${
                                     activeSessionId === s.id
-                                        ? "bg-blue-50 text-blue-700"
-                                        : "text-slate-700 hover:bg-slate-50"
+                                        ? (isDark ? "bg-blue-900/40 text-blue-300" : "bg-blue-50 text-blue-700")
+                                        : (isDark ? "text-slate-200 hover:bg-slate-800" : "text-slate-700 hover:bg-slate-50")
                                 }`}
                             >
                                 <button
@@ -73,7 +77,9 @@ export function SessionSidebar({
                                         e.stopPropagation();
                                         onDeleteSession(s.id);
                                     }}
-                                    className="ml-2 px-2 py-1 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity hover:text-slate-700"
+                                    className={`ml-2 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity ${
+                                        isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-500 hover:text-slate-700"
+                                    }`}
                                     aria-label={`Delete session ${s.id}`}
                                 >
                                     <X size={16} />
@@ -82,7 +88,7 @@ export function SessionSidebar({
                         ))}
                     </div>
 
-                    <div className="p-2 border-t border-slate-200">
+                    <div className={`p-2 border-t ${isDark ? "border-slate-800" : "border-slate-200"}`}>
                         <button
                             onClick={onDeleteAll}
                             disabled={!sessions.length}

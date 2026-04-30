@@ -24,7 +24,7 @@ mathpix:
   app-key: ${MATHPIX_APP_KEY:}
 
 # Optional: set LOCAL_OCR_URL (e.g. http://localhost:8000) to route OCR
-# requests to the local PP-OCRv5 service instead of Mathpix.
+# requests to the local PaddleOCR-VL service for better bounding boxes.
 local-ocr:
   url: ${LOCAL_OCR_URL:}
 

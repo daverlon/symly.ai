@@ -74,6 +74,24 @@ public class DeskController {
         if (result.wordDataJson() != null) {
             body.put("wordData", result.wordDataJson());
         }
+        if (result.mathpixText() != null) {
+            body.put("mathpixText", result.mathpixText());
+        }
+        if (result.ppocrText() != null) {
+            body.put("ppocrText", result.ppocrText());
+        }
+        if (result.mathpixLineDataJson() != null) {
+            body.put("mathpixLineData", result.mathpixLineDataJson());
+        }
+        if (result.mathpixWordDataJson() != null) {
+            body.put("mathpixWordData", result.mathpixWordDataJson());
+        }
+        if (result.mergedRawOutput() != null) {
+            body.put("mergedRawOutput", result.mergedRawOutput());
+        }
+        if (result.expressionRawOutput() != null) {
+            body.put("expressionRawOutput", result.expressionRawOutput());
+        }
         return ResponseEntity.ok(body);
     }
 

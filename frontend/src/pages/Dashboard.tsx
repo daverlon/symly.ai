@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
-import { Menu, Images, Camera, LogOut, Sparkles } from "lucide-react";
+import { Menu, Images, Camera, LogOut, Sparkles, Moon, Sun } from "lucide-react";
 
 import { createUploadSessionKey, createSession, deleteAllSessions, deleteSession, listSessions } from "../api/sessionsApi";
 import { moveDeskImage, deleteDeskImage, saveDeskImage } from "../api/deskImageApi";
@@ -42,6 +42,12 @@ export default function Dashboard() {
     const [phoneToken, setPhoneToken] = useState<string | null>(null);
     const [authOpen, setAuthOpen] = useState(false);
     const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+    const [isDark, setIsDark] = useState<boolean>(() => {
+        const stored = localStorage.getItem("theme");
+        if (stored === "dark") return true;
+        if (stored === "light") return false;
+        return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    });
 
     // Session / desk state
     const [deskImages, setDeskImages] = useState<DeskImage[]>([]);
@@ -55,7 +61,7 @@ export default function Dashboard() {
     const [highlightRegion, setHighlightRegion] = useState<import("../components/chat/AiChatPanel").HighlightRegion>(null);
 
     // Auth
-    const { username, setUsername, isAuthenticated, setIsAuthenticated } = useCheckToken(setLoading);
+    const { isAuthenticated, setIsAuthenticated } = useCheckToken(setLoading);
 
     const openAuth = useCallback((mode: "login" | "signup" = "login") => {
         setAuthMode(mode);
@@ -285,13 +291,25 @@ export default function Dashboard() {
         [phoneToken]
     );
 
+    useEffect(() => {
+        localStorage.setItem("theme", isDark ? "dark" : "light");
+        document.documentElement.classList.toggle("dark", isDark);
+    }, [isDark]);
+
     // ── Render ────────────────────────────────────────────────────────────────
 
     return (
-        <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
+        <div className={`h-screen overflow-hidden flex flex-col transition-colors ${
+            isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"
+        }`}>
 
             {/* Header */}
-            <header className="h-14 flex items-center justify-between px-6 border-b border-slate-200 bg-white/70" onClick={(e) => { if (!(e.target as HTMLElement).closest("button, a")) setImagePanelOpen(false); }}>
+            <header
+                className={`h-14 flex items-center justify-between px-6 border-b transition-colors ${
+                    isDark ? "border-slate-800 bg-slate-900/80" : "border-slate-200 bg-white/70"
+                }`}
+                onClick={(e) => { if (!(e.target as HTMLElement).closest("button, a")) setImagePanelOpen(false); }}
+            >
                 <div className="flex items-center gap-3">
                     <button
                         type="button"
@@ -299,13 +317,15 @@ export default function Dashboard() {
                             if (!isAuthenticated) { openAuth("login"); return; }
                             setSidebarOpen((v) => !v);
                         }}
-                        className="w-9 h-9 rounded-md flex items-center justify-center hover:bg-slate-200"
+                        className={`w-9 h-9 rounded-md flex items-center justify-center transition-colors ${
+                            isDark ? "hover:bg-slate-800" : "hover:bg-slate-200"
+                        }`}
                         aria-label="Open sessions sidebar"
                     >
-                        <Menu size={18} className="text-slate-700" />
+                        <Menu size={18} className={isDark ? "text-slate-200" : "text-slate-700"} />
                     </button>
                     <button
-                        className="text-sm text-slate-600"
+                        className={`text-sm ${isDark ? "text-slate-300" : "text-slate-600"}`}
                         onClick={() => navigate("/dashboard")}
                     >
                         symly.ai
@@ -313,49 +333,69 @@ export default function Dashboard() {
                     <button
                         onClick={() => setImagePanelOpen((v) => !v)}
                         disabled={activeSessionId == null}
-                        className="relative w-9 h-9 rounded-md flex items-center justify-center hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className={`relative w-9 h-9 rounded-md flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                            isDark ? "hover:bg-slate-800" : "hover:bg-slate-200"
+                        }`}
                     >
-                        <Images size={18} className="text-slate-700" />
+                        <Images size={18} className={isDark ? "text-slate-200" : "text-slate-700"} />
                         {!imagePanelOpen && (
-                            <div className="absolute bottom-1 right-1 w-2 h-2 bg-slate-400 rounded-full" />
+                            <div className={`absolute bottom-1 right-1 w-2 h-2 rounded-full ${isDark ? "bg-slate-500" : "bg-slate-400"}`} />
                         )}
                     </button>
                     <button
                         onClick={handleConnectPhone}
                         disabled={activeSessionId == null}
-                        className="w-9 h-9 rounded-md flex items-center justify-center hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className={`w-9 h-9 rounded-md flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                            isDark ? "hover:bg-slate-800" : "hover:bg-slate-200"
+                        }`}
                         aria-label="Connect phone"
                     >
-                        <Camera size={18} className="text-slate-700" />
+                        <Camera size={18} className={isDark ? "text-slate-200" : "text-slate-700"} />
                     </button>
                 </div>
 
                 <div className="flex items-center gap-1">
                     <button
                         type="button"
+                        onClick={() => setIsDark((v) => !v)}
+                        className={`w-9 h-9 rounded-md flex items-center justify-center transition-colors ${
+                            isDark ? "hover:bg-slate-800 text-amber-300" : "hover:bg-slate-200 text-slate-700"
+                        }`}
+                        aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+                        title={isDark ? "Light mode" : "Dark mode"}
+                    >
+                        {isDark ? <Sun size={18} /> : <Moon size={18} />}
+                    </button>
+                    <button
+                        type="button"
                         disabled={selectedIndex === null}
                         onClick={() => {
                             if (selectedIndex !== null) handleOpenChat(deskImages[selectedIndex]);
                         }}
-                        className="w-9 h-9 rounded-md flex items-center justify-center hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        className={`w-9 h-9 rounded-md flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
+                            isDark ? "hover:bg-slate-800" : "hover:bg-slate-200"
+                        }`}
                         aria-label="Ask AI about selected image"
                         title={selectedIndex === null ? "Select an image to ask AI" : "Ask AI"}
                     >
                         <Sparkles size={18} className={selectedIndex !== null ? "text-blue-600" : "text-slate-400"} />
                     </button>
-                    <div className="w-px h-5 bg-slate-200 mx-1" />
+                    <div className={`w-px h-5 mx-1 ${isDark ? "bg-slate-700" : "bg-slate-200"}`} />
                     <button
                         onClick={() => isAuthenticated ? handleSignOut() : openAuth("login")}
-                        className="w-9 h-9 rounded-md flex items-center justify-center hover:bg-slate-200"
+                        className={`w-9 h-9 rounded-md flex items-center justify-center transition-colors ${
+                            isDark ? "hover:bg-slate-800" : "hover:bg-slate-200"
+                        }`}
                         aria-label={isAuthenticated ? "Sign out" : "Sign in"}
                     >
-                        <LogOut size={18} className="text-slate-700" />
+                        <LogOut size={18} className={isDark ? "text-slate-200" : "text-slate-700"} />
                     </button>
                 </div>
             </header>
 
             {/* Sidebar */}
             <SessionSidebar
+                isDark={isDark}
                 isOpen={sidebarOpen}
                 sessions={sessions}
                 activeSessionId={activeSessionId}
@@ -370,7 +410,7 @@ export default function Dashboard() {
             />
 
             {/* Main area — horizontal split: desk | chat */}
-            <main className="relative flex-1 overflow-hidden flex" onClick={() => setImagePanelOpen(false)}>
+            <main className="relative flex-1 min-h-0 overflow-hidden flex" onClick={() => setImagePanelOpen(false)}>
 
                 {/* Desk area — shrinks to left half when chat is open */}
                 <div
@@ -382,9 +422,11 @@ export default function Dashboard() {
 
                     {!activeSessionId && (
                         <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="rounded-2xl border border-slate-200 bg-white/80 backdrop-blur p-8 text-center shadow-sm">
-                                <div className="text-lg font-semibold text-slate-800">No session selected</div>
-                                <div className="text-sm text-slate-600 mt-2">
+                            <div className={`rounded-2xl border backdrop-blur p-8 text-center shadow-sm transition-colors ${
+                                isDark ? "border-slate-700 bg-slate-900/80" : "border-slate-200 bg-white/80"
+                            }`}>
+                                <div className={`text-lg font-semibold ${isDark ? "text-slate-100" : "text-slate-800"}`}>No session selected</div>
+                                <div className={`text-sm mt-2 ${isDark ? "text-slate-300" : "text-slate-600"}`}>
                                     Select a session from the sidebar or create a new one to get started.
                                 </div>
                                 <button
@@ -399,6 +441,7 @@ export default function Dashboard() {
 
                     {deskImages.length > 0 && (
                         <DeskStrip
+                            isDark={isDark}
                             deskImages={deskImages}
                             blobUrls={blobUrls}
                             selectedIndex={selectedIndex}
@@ -414,12 +457,15 @@ export default function Dashboard() {
 
                 {/* AI chat panel — slides in from the right */}
                 <div
-                    className={`transition-all duration-300 ease-out overflow-hidden border-l border-slate-200 shrink-0 ${
+                    className={`transition-all duration-300 ease-out overflow-hidden min-h-0 border-l shrink-0 ${
+                        isDark ? "border-slate-800" : "border-slate-200"
+                    } ${
                         chatOpen ? "w-1/2" : "w-0"
                     }`}
                 >
                     {chatMounted && (
                         <AiChatPanel
+                            isDark={isDark}
                             image={chatImage}
                             imageUrl={chatImage ? blobUrls[chatImage.name] : undefined}
                             sessionId={activeSessionId}
@@ -432,12 +478,15 @@ export default function Dashboard() {
                 {/* Image panel slide-down */}
                 <div className="fixed top-14 left-0 right-0 z-20 overflow-hidden pointer-events-none">
                     <div
-                        className={`bg-white border-b border-slate-200 transition-transform duration-300 ease-out pointer-events-auto ${
+                        className={`border-b transition-transform duration-300 ease-out pointer-events-auto ${
+                            isDark ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
+                        } ${
                             imagePanelOpen ? "translate-y-0" : "-translate-y-full"
                         }`}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <ImagePanel
+                            isDark={isDark}
                             sessionId={activeSessionId}
                             images={sessionImages}
                             onSelect={(blobUrl) => {
@@ -456,11 +505,13 @@ export default function Dashboard() {
                     onClick={() => setQrOpen(false)}
                 >
                     <div
-                        className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white/90 backdrop-blur p-5 shadow-lg"
+                        className={`w-full max-w-sm rounded-2xl border backdrop-blur p-5 shadow-lg ${
+                            isDark ? "border-slate-700 bg-slate-900/95" : "border-slate-200 bg-white/90"
+                        }`}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="mb-1 text-sm font-semibold text-slate-900">Connect phone</div>
-                        <div className="text-xs text-slate-600 mb-5">Scan to open the upload page</div>
+                        <div className={`mb-1 text-sm font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}>Connect phone</div>
+                        <div className={`text-xs mb-5 ${isDark ? "text-slate-300" : "text-slate-600"}`}>Scan to open the upload page</div>
                         <div className="flex items-center justify-center">
                             <QRCodeSVG value={mobileUploadUrl} size={190} />
                         </div>
@@ -482,7 +533,7 @@ export default function Dashboard() {
                     className="fixed inset-0 z-50 bg-slate-900/70 flex items-center justify-center p-6"
                     onClick={() => setPreviewImage(null)}
                 >
-                    <div className="relative max-w-5xl w-full flex items-center justify-center">
+                    <div className={`relative w-full flex items-center justify-center p-4 ${chatOpen ? "max-w-3xl" : "max-w-5xl"}`}>
                         <img
                             src={previewImage}
                             alt="Preview"
@@ -498,7 +549,7 @@ export default function Dashboard() {
                     className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center"
                     onClick={() => setAuthOpen(false)}
                 >
-                    <div className="bg-white rounded-xl p-6 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+                    <div className={`rounded-xl p-6 w-full max-w-sm ${isDark ? "bg-slate-900 text-slate-100" : "bg-white"}`} onClick={(e) => e.stopPropagation()}>
                         {authMode === "login" ? (
                             <LoginModal
                                 onSuccess={() => {

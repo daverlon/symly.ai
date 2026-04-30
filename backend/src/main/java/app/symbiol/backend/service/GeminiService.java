@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import app.symbiol.backend.dto.ChatMessageDto;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +29,8 @@ public class GeminiService {
     @Value("${gemini.api-key}")
     private String apiKey;
 
-    private static final String MODEL = "gemini-2.5-flash";
+    private static final String CHAT_MODEL = "gemini-2.5-flash";
+    private static final String OCR_POSTPROCESS_MODEL = "gemini-2.5-flash-lite";
     private static final String BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
 
     /** Matches the body of any LaTeX environment, e.g. \begin{array}{l}...\end{array} */
@@ -75,7 +77,7 @@ public class GeminiService {
             return null;
         }
 
-        String url = BASE_URL + MODEL + ":generateContent?key=" + apiKey;
+        String url = BASE_URL + CHAT_MODEL + ":generateContent?key=" + apiKey;
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -114,22 +116,32 @@ public class GeminiService {
     public String buildSystemPrompt(String ocrText, String lineDataJson) {
         StringBuilder sb = new StringBuilder();
 
-        sb.append("""
-                You are a math and science tutor. A student has uploaded a photo of their homework.
+    sb.append("""
+## Role
+You are an authentic, direct Math and Science Tutor. You are reviewing a student's work provided as an ordered JSON array of mathematical expressions and text.
 
-                Be direct and concise. Point out errors clearly, explain why they're wrong, and show \
-                the correct approach. Don't over-explain or add filler.
+## Tone & Style
+- **Be Direct:** No fluff. Don't say "I've analyzed your work" or "Let's look at this." Start immediately with the feedback.
+- **Peer-to-Peer:** Speak like a helpful, grounded peer. Validate correct logic briefly and correct errors firmly but gently.
+- **Detective Work:** Distinguish the original "Question" from the student's "Attempt" based on context (e.g., lines starting with '=' are usually attempts).
 
-                Use LaTeX for math: $inline$ for inline, $$display$$ for display equations.
+## Feedback Logic
+1. **Identify the Goal:** Determine the problem the student is trying to solve.
+2. **Scan for Errors:** Check each step for algebraic, sign, or calculation mistakes.
+3. **Correct:** If a mistake is found, name the error, explain the correct logic, and provide the fix.
+4. **Validate:** If the work is 100% correct, say "The logic is correct" and explain why the steps hold up.
 
-                When referencing a specific line from the spatial layout, use this markdown link syntax:
-                - Single-line entries: [your description](#line-N)
-                - A specific step within a multi-step math block (lines that show "— N steps:"): \
-                [your description](#line-N-step-M) where M is the 1-indexed step number.
-                Example: "[step 3](#line-2-step-3) has a sign error, but [step 5](#line-2-step-5) is correct."
-                Only use #line-N-step-M for lines that list multiple steps. Use #line-N for everything else.
+## Interaction & Linking (CRITICAL)
+You must reference specific steps using Markdown links so the UI can highlight them.
+- **Anchor Mapping:** The first object in the input array is "Line 1", the second is "Line 2", and so on.
+- **Link Syntax:** `[Exact LaTeX from input](#line-N)`
+- **Example:** "You made a calculation error in [$=5 x+15-4=10$](#line-4). It should simplify to $+11$."
 
-                """);
+## Formatting
+- **LaTeX:** Use $...$ for inline math and $$...$$ for standalone equations. Use LaTeX for all variables and numbers.
+- **Concept Tags:** Wrap the core mathematical concept in [[double brackets]] (e.g., [[distributive property]]). Max one per response.
+
+        """);
 
         if (ocrText != null && !ocrText.isBlank()) {
             sb.append("## Extracted content (Mathpix OCR)\n\n");
@@ -220,5 +232,93 @@ public class GeminiService {
         }
 
         return steps.size() > 1 ? steps : List.of(rawText.strip());
+    }
+
+    public String buildExpressionRawOutput(String mergedRawOutputJson) {
+        String prompt = """
+Please process the provided JSON array of bounding boxes for handwritten math OCR. Group these boxes into logical mathematical units based on these rules:
+
+1.  **Do not merge distinct steps:** Each step of an equation should remain separate. Only merge boxes if they are parts of the *same* line or step (e.g., a numerator box and a denominator box forming a single fraction).
+2.  **Spatial Logic:** Boxes that are vertically stacked or horizontally overlapping and represent fragments of the same equation line should be merged into a single `text` string.
+3.  **LaTeX Integration:** Intelligently combine the `text` fields. If a box contains a partial fraction structure (like a numerator or denominator split across boxes), merge them into valid LaTeX syntax (e.g., `\\frac{numerator}{denominator}`).
+4.  **Output Format:** Return a JSON array where each object contains:
+    *   `boxIds`: Array of box IDs that form this specific logical unit.
+    *   `text `: The resulting combined LaTeX string for that unit.
+
+""";
+
+        String content = prompt + "\n" + (mergedRawOutputJson != null ? mergedRawOutputJson : "[]");
+        try {
+            com.fasterxml.jackson.databind.node.ObjectNode requestBody = objectMapper.createObjectNode();
+            requestBody.set("contents", objectMapper.createArrayNode()
+                    .add(objectMapper.createObjectNode()
+                            .set("parts", objectMapper.createArrayNode()
+                                    .add(objectMapper.createObjectNode()
+                                            .put("text", content)))));
+            requestBody.set("generationConfig", objectMapper.createObjectNode()
+                    .put("temperature", 0.2)
+                    .put("maxOutputTokens", 4096)
+                    .put("responseMimeType", "application/json"));
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(BASE_URL + OCR_POSTPROCESS_MODEL + ":generateContent?key=" + apiKey))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(requestBody)))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                log.error("Gemini expression request failed: HTTP {}", response.statusCode());
+                return null;
+            }
+
+            JsonNode root = objectMapper.readTree(response.body());
+            String out = root.path("candidates")
+                    .path(0)
+                    .path("content")
+                    .path("parts")
+                    .path(0)
+                    .path("text")
+                    .asText(null);
+
+            if (out == null) return null;
+            String cleaned = out.replaceAll("```json\\s*", "").replaceAll("```\\s*$", "").trim();
+            return toValidJsonOrError(cleaned);
+        } catch (IOException | InterruptedException e) {
+            log.error("Gemini expression request failed", e);
+            Thread.currentThread().interrupt();
+            return null;
+        }
+    }
+
+    private String toValidJsonOrError(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "{\"error\":\"empty_output\"}";
+        }
+        try {
+            JsonNode parsed = objectMapper.readTree(raw);
+            return objectMapper.writeValueAsString(parsed);
+        } catch (IOException ignored) {
+            // Try to salvage when model adds extra prose around JSON.
+            int firstBracket = raw.indexOf('[');
+            int lastBracket = raw.lastIndexOf(']');
+            if (firstBracket >= 0 && lastBracket > firstBracket) {
+                String sliced = raw.substring(firstBracket, lastBracket + 1);
+                try {
+                    JsonNode parsed = objectMapper.readTree(sliced);
+                    return objectMapper.writeValueAsString(parsed);
+                } catch (IOException ignoredAgain) {
+                    // fall through
+                }
+            }
+            ObjectNode err = objectMapper.createObjectNode();
+            err.put("error", "invalid_json_from_model");
+            err.put("raw", raw);
+            try {
+                return objectMapper.writeValueAsString(err);
+            } catch (IOException e) {
+                return "{\"error\":\"invalid_json_from_model\"}";
+            }
+        }
     }
 }

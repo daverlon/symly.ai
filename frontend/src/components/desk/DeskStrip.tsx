@@ -6,6 +6,7 @@ import { useMouseDrag } from "../../hooks/useMouseDrag";
 import { useResetLoadedDeskImageCount } from "../../hooks/useResetLoadedDeskImageCount";
 
 interface DeskStripProps {
+    isDark?: boolean;
     deskImages: DeskImage[];
     blobUrls: Record<string, string>;
     selectedIndex: number | null;
@@ -23,6 +24,7 @@ interface DropTarget {
 }
 
 export function DeskStrip({
+    isDark = false,
     deskImages,
     blobUrls,
     selectedIndex,
@@ -155,7 +157,9 @@ export function DeskStrip({
                                 className={`relative transition-all duration-200 rounded-lg overflow-hidden ${
                                     isSelected
                                         ? "outline outline-2 outline-blue-400 shadow-xl"
-                                        : "outline outline-1 outline-transparent hover:outline-slate-300 hover:shadow-md"
+                                        : (isDark
+                                            ? "outline outline-1 outline-transparent hover:outline-slate-600 hover:shadow-md"
+                                            : "outline outline-1 outline-transparent hover:outline-slate-300 hover:shadow-md")
                                 }`}
                             >
                                 <img
@@ -209,7 +213,11 @@ export function DeskStrip({
                                 {/* Remove button — top-right, visible on hover */}
                                 <button
                                     type="button"
-                                    className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-white/80 backdrop-blur border border-slate-200/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm text-slate-500 hover:bg-red-500 hover:text-white hover:border-red-500 active:scale-90"
+                                    className={`absolute top-2 right-2 z-10 w-7 h-7 rounded-full backdrop-blur border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm active:scale-90 ${
+                                        isDark
+                                            ? "bg-slate-900/80 border-slate-700 text-slate-300 hover:bg-red-500 hover:text-white hover:border-red-500"
+                                            : "bg-white/80 border-slate-200/80 text-slate-500 hover:bg-red-500 hover:text-white hover:border-red-500"
+                                    }`}
                                     title="Remove from desk"
                                     onClick={(e) => {
                                         e.stopPropagation();

@@ -5,6 +5,7 @@ import { uploadImageFile } from "../api/imageApi";
 import { createUploadSessionKey } from "../api/sessionsApi";
 
 interface ImagePanelProps {
+    isDark?: boolean;
     sessionId: string | null;
     images: SessionImage[];
     onSelect: (blobUrl: string) => void;
@@ -19,7 +20,7 @@ function sessionImageToDeskImage(si: SessionImage): DeskImage {
     };
 }
 
-export default function ImagePanel({ sessionId, images, onSelect, onAddToDesk }: ImagePanelProps) {
+export default function ImagePanel({ isDark = false, sessionId, images, onSelect, onAddToDesk }: ImagePanelProps) {
     const [urls, setUrls] = useState<Record<string, string>>({}); // map filename -> blob URL
     const [uploading, setUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
@@ -69,17 +70,22 @@ export default function ImagePanel({ sessionId, images, onSelect, onAddToDesk }:
     return (
         <div className="flex flex-col gap-0">
             {uploadError && (
-                <div className="px-3 py-1.5 text-xs text-red-600 bg-red-50 border-b border-red-100">
+                <div className={`px-3 py-1.5 text-xs border-b ${
+                    isDark ? "text-red-300 bg-red-950/40 border-red-900/40" : "text-red-600 bg-red-50 border-red-100"
+                }`}>
                     {uploadError}
                 </div>
             )}
-            <div className="flex gap-2 overflow-x-auto p-2 border-t border-slate-200 bg-white/80">
+            <div className={`flex gap-2 overflow-x-auto p-2 border-t ${
+                isDark ? "border-slate-800 bg-slate-900/80" : "border-slate-200 bg-white/80"
+            }`}>
             <div
                 key="__upload__"
                 className={`relative w-20 h-20 flex-shrink-0 rounded border-2 border-dashed transition-colors flex flex-col items-center justify-center gap-1 ${
                     uploading
-                        ? "border-blue-300 bg-blue-50 cursor-default text-blue-400"
-                        : "border-slate-300 hover:border-blue-400 hover:bg-blue-50 cursor-pointer text-slate-400 hover:text-blue-500"
+                        ? (isDark ? "border-blue-700 bg-blue-900/40 cursor-default text-blue-300" : "border-blue-300 bg-blue-50 cursor-default text-blue-400")
+                        : (isDark ? "border-slate-700 hover:border-blue-600 hover:bg-slate-800 cursor-pointer text-slate-400 hover:text-blue-300"
+                            : "border-slate-300 hover:border-blue-400 hover:bg-blue-50 cursor-pointer text-slate-400 hover:text-blue-500")
                 }`}
                 onClick={() => { if (!uploading) fileInputRef.current?.click(); }}
             >
@@ -111,7 +117,9 @@ export default function ImagePanel({ sessionId, images, onSelect, onAddToDesk }:
                     {img && (<img
                         src={urls[img.name]}
                         alt={img.name}
-                        className="w-20 h-20 object-cover rounded cursor-pointer border border-slate-300 hover:border-blue-500"
+                        className={`w-20 h-20 object-cover rounded cursor-pointer border ${
+                            isDark ? "border-slate-700 hover:border-blue-500" : "border-slate-300 hover:border-blue-500"
+                        }`}
                         onClick={() => onAddToDesk(sessionImageToDeskImage(img))}
                     />)}
                     {/* Hover button to preview */}

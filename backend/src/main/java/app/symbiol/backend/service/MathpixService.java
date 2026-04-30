@@ -31,7 +31,7 @@ public class MathpixService {
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public record OcrResult(String text, String lineDataJson, String wordDataJson) {}
+    public record OcrResult(String text, String lineDataJson, String wordDataJson, String mathpixText) {}
 
     public OcrResult extractText(byte[] imageBytes, String contentType) {
         String base64 = Base64.getEncoder().encodeToString(imageBytes);
@@ -44,7 +44,6 @@ public class MathpixService {
         bodyMap.put("math_inline_delimiters", new String[]{"$", "$"});
         bodyMap.put("math_display_delimiters", new String[]{"$$", "$$"});
         bodyMap.put("include_line_data", true);
-        bodyMap.put("include_word_data", true);
         bodyMap.put("idiomatic_eqn_arrays", true);
 
         String body;
@@ -52,7 +51,7 @@ public class MathpixService {
             body = objectMapper.writeValueAsString(bodyMap);
         } catch (IOException e) {
             log.error("Failed to serialise Mathpix request", e);
-            return new OcrResult(null, null, null);
+            return new OcrResult(null, null, null, null);
         }
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -68,25 +67,100 @@ public class MathpixService {
 
             if (response.statusCode() != 200) {
                 log.error("Mathpix returned HTTP {}: {}", response.statusCode(), response.body());
-                return new OcrResult(null, null, null);
+                return new OcrResult(null, null, null, null);
+            }
+
+            JsonNode root = objectMapper.readTree(response.body());
+            java.util.List<String> keys = new java.util.ArrayList<>();
+            if (root.fieldNames() != null) {
+                root.fieldNames().forEachRemaining(keys::add);
+            }
+            log.info("Mathpix raw response keys: {}", keys);
+
+            if (root.has("error")) {
+                log.error("Mathpix error: {}", root.get("error").asText());
+                return new OcrResult(null, null, null, null);
+            }
+
+            String text         = root.has("text")      ? root.get("text").asText()                              : null;
+            String lineDataJson = root.has("line_data")  ? objectMapper.writeValueAsString(root.get("line_data")) : null;
+
+            // If text is empty but line_data exists, build text from line_data
+            if ((text == null || text.isBlank()) && lineDataJson != null) {
+                JsonNode lineDataArray = root.get("line_data");
+                if (lineDataArray != null && lineDataArray.isArray()) {
+                    StringBuilder sb = new StringBuilder();
+                    for (JsonNode line : lineDataArray) {
+                        String lineText = line.has("text") ? line.get("text").asText() : null;
+                        if (lineText != null && !lineText.isBlank()) {
+                            if (!sb.isEmpty()) sb.append("\n");
+                            sb.append(lineText);
+                        }
+                    }
+                    if (!sb.isEmpty()) {
+                        text = sb.toString();
+                    }
+                }
+            }
+
+            return new OcrResult(text, lineDataJson, null, text);
+        } catch (IOException | InterruptedException e) {
+            log.error("Mathpix request failed", e);
+            Thread.currentThread().interrupt();
+            return new OcrResult(null, null, null, null);
+        }
+    }
+
+    /**
+     * Extract text without line data for hybrid OCR merging
+     */
+    public String extractTextOnly(byte[] imageBytes, String contentType) {
+        String base64 = Base64.getEncoder().encodeToString(imageBytes);
+        String src = "data:" + contentType + ";base64," + base64;
+
+        Map<String, Object> bodyMap = new LinkedHashMap<>();
+        bodyMap.put("src", src);
+        bodyMap.put("formats", new String[]{"text"});
+        bodyMap.put("rm_spaces", true);
+        bodyMap.put("math_inline_delimiters", new String[]{"$", "$"});
+        bodyMap.put("math_display_delimiters", new String[]{"$$", "$$"});
+
+        String body;
+        try {
+            body = objectMapper.writeValueAsString(bodyMap);
+        } catch (IOException e) {
+            log.error("Failed to serialise Mathpix request", e);
+            return null;
+        }
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(MATHPIX_URL))
+                .header("app_id", appId)
+                .header("app_key", appKey)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() != 200) {
+                log.error("Mathpix returned HTTP {}: {}", response.statusCode(), response.body());
+                return null;
             }
 
             JsonNode root = objectMapper.readTree(response.body());
 
             if (root.has("error")) {
                 log.error("Mathpix error: {}", root.get("error").asText());
-                return new OcrResult(null, null, null);
+                return null;
             }
 
-            String text         = root.has("text")      ? root.get("text").asText()                              : null;
-            String lineDataJson = root.has("line_data")  ? objectMapper.writeValueAsString(root.get("line_data")) : null;
-            String wordDataJson = root.has("word_data")  ? objectMapper.writeValueAsString(root.get("word_data")) : null;
-
-            return new OcrResult(text, lineDataJson, wordDataJson);
+            return root.has("text") ? root.get("text").asText() : null;
         } catch (IOException | InterruptedException e) {
             log.error("Mathpix request failed", e);
             Thread.currentThread().interrupt();
-            return new OcrResult(null, null, null);
+            return null;
         }
     }
 }

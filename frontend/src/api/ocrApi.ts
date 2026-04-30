@@ -1,9 +1,15 @@
 import { API_BASE, authHeaders } from "./client";
 
 export type OcrResult = {
-    text: string;
-    lineData?: unknown;   // raw Mathpix line_data array — spatial bounding boxes per line
-    wordData?: unknown;   // raw Mathpix word_data array — word-level bounding boxes
+    text: string | null;
+    lineData: unknown | null;   // raw Mathpix line_data array — spatial bounding boxes per line
+    wordData: unknown | null;   // raw Mathpix word_data array — word-level bounding boxes
+    mathpixText: string | null;
+    ppocrText: string | null;
+    mathpixLineData: unknown | null;
+    mathpixWordData: unknown | null;
+    mergedRawOutput: unknown | null;
+    expressionRawOutput: unknown | null;
 };
 
 export async function clearDeskImageOcr(sessionId: string, uid: string): Promise<void> {
@@ -21,8 +27,15 @@ export async function getDeskImageOcr(sessionId: string, uid: string): Promise<O
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     return {
-        text: (data.text as string) ?? "",
-        lineData: data.lineData ? JSON.parse(data.lineData as string) : undefined,
-        wordData: data.wordData ? JSON.parse(data.wordData as string) : undefined,
+        text: data.text ?? null,
+        // Support both legacy snake_case and current camelCase backend payloads
+        lineData: data.line_data ?? data.lineData ?? null,
+        wordData: data.word_data ?? data.wordData ?? null,
+        mathpixText: data.mathpixText || null,
+        ppocrText: data.ppocrText || null,
+        mathpixLineData: data.mathpixLineData ?? null,
+        mathpixWordData: data.mathpixWordData ?? null,
+        mergedRawOutput: data.mergedRawOutput ?? null,
+        expressionRawOutput: data.expressionRawOutput ?? null,
     };
 }

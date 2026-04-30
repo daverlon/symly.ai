@@ -38,7 +38,10 @@ public class LocalOcrService {
         return localOcrUrl != null && !localOcrUrl.isBlank();
     }
 
-    public MathpixService.OcrResult extractText(byte[] imageBytes, String contentType) {
+    /**
+     * Extract bounding boxes only (detection only, no recognition)
+     */
+    public String extractBoundingBoxes(byte[] imageBytes, String contentType) {
         String base64 = Base64.getEncoder().encodeToString(imageBytes);
         String src = "data:" + contentType + ";base64," + base64;
 
@@ -50,7 +53,7 @@ public class LocalOcrService {
             body = objectMapper.writeValueAsString(bodyMap);
         } catch (IOException e) {
             log.error("Failed to serialise local OCR request", e);
-            return new MathpixService.OcrResult(null, null, null);
+            return null;
         }
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -63,17 +66,64 @@ public class LocalOcrService {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) {
                 log.error("Local OCR returned HTTP {}: {}", response.statusCode(), response.body());
-                return new MathpixService.OcrResult(null, null, null);
+                return null;
             }
             JsonNode root = objectMapper.readTree(response.body());
-            String text        = root.has("text")      ? root.get("text").asText()                              : null;
-            String lineDataJson = root.has("line_data") ? objectMapper.writeValueAsString(root.get("line_data")) : null;
-            String wordDataJson = root.has("word_data") ? objectMapper.writeValueAsString(root.get("word_data")) : null;
-            return new MathpixService.OcrResult(text, lineDataJson, wordDataJson);
-        } catch (IOException | InterruptedException e) {
-            log.error("Local OCR request failed", e);
+            JsonNode boxes = root.get("boxes");
+            return boxes != null ? objectMapper.writeValueAsString(boxes) : null;
+        } catch (InterruptedException e) {
+            log.error("Local OCR request interrupted", e);
             Thread.currentThread().interrupt();
-            return new MathpixService.OcrResult(null, null, null);
+            return null;
+        } catch (IOException e) {
+            log.error("Local OCR request failed", e);
+            return null;
+        }
+    }
+
+    public MathpixService.OcrResult extractText(byte[] imageBytes, String contentType) {
+        String base64 = Base64.getEncoder().encodeToString(imageBytes);
+        String src = "data:" + contentType + ";base64," + base64;
+
+        Map<String, Object> bodyMap = new LinkedHashMap<>();
+        bodyMap.put("src", src);
+
+        String body;
+        try {
+            body = objectMapper.writeValueAsString(bodyMap);
+        } catch (IOException e) {
+            log.error("Failed to serialise local OCR request", e);
+            return new MathpixService.OcrResult(null, null, null, null);
+        }
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(localOcrUrl + "/ocr"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build();
+
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                log.error("Local OCR returned HTTP {}: {}", response.statusCode(), response.body());
+                return new MathpixService.OcrResult(null, null, null, null);
+            }
+            JsonNode root = objectMapper.readTree(response.body());
+            String text = (root.has("text") && !root.get("text").isNull()) ? root.get("text").asText() : null;
+            String lineDataJson = (root.has("line_data") && !root.get("line_data").isNull())
+                    ? objectMapper.writeValueAsString(root.get("line_data"))
+                    : null;
+            String wordDataJson = (root.has("word_data") && !root.get("word_data").isNull())
+                    ? objectMapper.writeValueAsString(root.get("word_data"))
+                    : null;
+            return new MathpixService.OcrResult(text, lineDataJson, wordDataJson, null);
+        } catch (InterruptedException e) {
+            log.error("Local OCR request interrupted", e);
+            Thread.currentThread().interrupt();
+            return new MathpixService.OcrResult(null, null, null, null);
+        } catch (IOException e) {
+            log.error("Local OCR request failed", e);
+            return new MathpixService.OcrResult(null, null, null, null);
         }
     }
 }

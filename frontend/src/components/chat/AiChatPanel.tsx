@@ -37,6 +37,20 @@ function splitMathLines(mathText: string): string[] {
     return parts.map((s) => s.trim()).filter(Boolean);
 }
 
+function normalizeLineData(lineData: unknown): MathpixLine[] {
+    if (!lineData) return [];
+    if (Array.isArray(lineData)) return lineData as MathpixLine[];
+    if (typeof lineData === "string") {
+        try {
+            const parsed = JSON.parse(lineData);
+            return Array.isArray(parsed) ? (parsed as MathpixLine[]) : [];
+        } catch {
+            return [];
+        }
+    }
+    return [];
+}
+
 /**
  * Proportional fallback: divides the line's y-range into equal strips.
  */
@@ -133,6 +147,7 @@ export type HighlightRegion = {
 } | null;
 
 interface AiChatPanelProps {
+    isDark?: boolean;
     image: DeskImage | null;
     imageUrl?: string;
     sessionId: string | null;
@@ -154,7 +169,7 @@ const WELCOME_MESSAGE: Message = {
     content: "I can see your homework. Ask me anything — about the problem, your approach, or where you might have gone wrong.",
 };
 
-export function AiChatPanel({ image, imageUrl, sessionId, onClose, onHighlight }: AiChatPanelProps) {
+export function AiChatPanel({ isDark = false, image, imageUrl, sessionId, onClose, onHighlight }: AiChatPanelProps) {
     const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
@@ -162,6 +177,35 @@ export function AiChatPanel({ image, imageUrl, sessionId, onClose, onHighlight }
     const [ocr, setOcr] = useState<OcrResult | null>(null);
     const [ocrExpanded, setOcrExpanded] = useState(false);
     const bottomRef = useRef<HTMLDivElement | null>(null);
+    const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const parsedLineData = normalizeLineData(ocr?.lineData);
+
+    const handleHighlight = (region: HighlightRegion | null) => {
+        if (highlightTimeoutRef.current) {
+            clearTimeout(highlightTimeoutRef.current);
+            highlightTimeoutRef.current = null;
+        }
+        if (region) {
+            onHighlight(region);
+        } else {
+            // Delay clearing highlight to allow smooth transition between adjacent elements
+            highlightTimeoutRef.current = setTimeout(() => {
+                onHighlight(null);
+            }, 50);
+        }
+    };
+
+    const handleTermClick = (term: string) => {
+        setInput(`tell me about ${term}`);
+    };
+
+    const processMessageContent = (content: string) => {
+        if (!content) return content;
+        // Convert [[term]] to markdown links that will be handled by the custom 'a' component
+        return content.replace(/\[\[([^\]]+)\]\]/g, (_, term) => {
+            return `[${term}](#term-${term})`;
+        });
+    };
 
     function fetchOcr(sid: string, uid: string) {
         setOcrStatus("loading");
@@ -174,13 +218,20 @@ export function AiChatPanel({ image, imageUrl, sessionId, onClose, onHighlight }
             .catch(() => setOcrStatus("error"));
     }
 
-    // Reset state when image changes — OCR is NOT fetched until the first message is sent
+    // Reset state when image changes
     useEffect(() => {
         setMessages([WELCOME_MESSAGE]);
         setInput("");
         setOcr(null);
         setOcrExpanded(false);
         setOcrStatus("idle");
+    }, [image?.uid, sessionId]);
+
+    // Automatically load OCR when chat opens
+    useEffect(() => {
+        if (image && sessionId) {
+            fetchOcr(sessionId, image.uid);
+        }
     }, [image?.uid, sessionId]);
 
     async function handleRegenerate() {
@@ -242,12 +293,16 @@ export function AiChatPanel({ image, imageUrl, sessionId, onClose, onHighlight }
     }
 
     return (
-        <div className="h-full flex flex-col bg-white">
+        <div className={`h-full min-h-0 flex flex-col transition-colors ${isDark ? "bg-slate-900" : "bg-white"}`}>
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 shrink-0 gap-3">
+            <div className={`flex items-center justify-between px-4 py-3 border-b shrink-0 gap-3 ${
+                isDark ? "border-slate-800" : "border-slate-200"
+            }`}>
                 {/* Image thumbnail */}
                 {imageUrl && (
-                    <div className="shrink-0 w-10 h-10 rounded-md overflow-hidden border border-slate-200 bg-slate-50">
+                    <div className={`shrink-0 w-10 h-10 rounded-md overflow-hidden border ${
+                        isDark ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-slate-50"
+                    }`}>
                         <img
                             src={imageUrl}
                             alt="Context image"
@@ -258,12 +313,14 @@ export function AiChatPanel({ image, imageUrl, sessionId, onClose, onHighlight }
 
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                     <Sparkles size={14} className="text-blue-500 shrink-0" />
-                    <span className="text-sm font-semibold text-slate-800 truncate">AI Tutor</span>
+                    <span className={`text-sm font-semibold truncate ${isDark ? "text-slate-100" : "text-slate-800"}`}>AI Tutor</span>
                 </div>
 
                 <button
                     onClick={onClose}
-                    className="w-7 h-7 shrink-0 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                    className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-md transition-colors ${
+                        isDark ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                    }`}
                     aria-label="Close chat"
                 >
                     <X size={15} />
@@ -271,9 +328,9 @@ export function AiChatPanel({ image, imageUrl, sessionId, onClose, onHighlight }
             </div>
 
             {/* OCR context bar */}
-            <div className="shrink-0 border-b border-slate-100">
+            <div className={`shrink-0 border-b ${isDark ? "border-slate-800" : "border-slate-100"}`}>
                 {ocrStatus === "loading" && (
-                    <div className="flex items-center gap-2 px-4 py-2 text-xs text-slate-500">
+                    <div className={`flex items-center gap-2 px-4 py-2 text-xs ${isDark ? "text-slate-400" : "text-slate-500"}`}>
                         <Loader2 size={12} className="animate-spin" />
                         Extracting text from image…
                     </div>
@@ -300,24 +357,41 @@ export function AiChatPanel({ image, imageUrl, sessionId, onClose, onHighlight }
                             <button
                                 type="button"
                                 onClick={() => setOcrExpanded((v) => !v)}
-                                className="flex-1 flex items-center justify-between px-4 py-2 text-xs text-slate-500 hover:bg-slate-50 transition-colors"
+                                className={`flex-1 flex items-center justify-between px-4 py-2 text-xs transition-colors ${
+                                    isDark ? "text-slate-400 hover:bg-slate-800" : "text-slate-500 hover:bg-slate-50"
+                                }`}
                             >
-                                <span className="font-medium text-slate-600">
+                                <span className={`font-medium ${isDark ? "text-slate-300" : "text-slate-600"}`}>
                                     Extracted text
                                     {ocr.lineData ? <span className="ml-1.5 text-blue-500 font-normal">+ spatial layout</span> : null}
                                 </span>
                                 {ocrExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                             </button>
                         ) : (
-                            <span className="flex-1 px-4 py-2 text-xs text-amber-600 font-medium">
-                                {ocrStatus === "done" ? "⚠ No text extracted — AI responses may be unreliable" : ""}
-                            </span>
+                            <div className="flex-1 flex items-center gap-2">
+                                <span className="px-4 py-2 text-xs text-amber-600 font-medium">
+                                    {ocrStatus === "done" ? "⚠ No text extracted — AI responses may be unreliable" : ""}
+                                </span>
+                                {ocrStatus === "done" && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setOcrExpanded((v) => !v)}
+                                        className={`px-2 py-1 text-[11px] transition-colors ${
+                                            isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-400 hover:text-slate-600"
+                                        }`}
+                                    >
+                                        {ocrExpanded ? "Hide payload" : "Show payload"}
+                                    </button>
+                                )}
+                            </div>
                         )}
                         {image && sessionId && (
                             <button
                                 type="button"
                                 onClick={handleRegenerate}
-                                className="shrink-0 flex items-center gap-1 px-3 py-2 text-[11px] text-slate-400 hover:text-slate-600 transition-colors"
+                                className={`shrink-0 flex items-center gap-1 px-3 py-2 text-[11px] transition-colors ${
+                                    isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-400 hover:text-slate-600"
+                                }`}
                                 title="Re-run OCR (debug)"
                             >
                                 <RefreshCw size={11} />
@@ -327,59 +401,67 @@ export function AiChatPanel({ image, imageUrl, sessionId, onClose, onHighlight }
                     </div>
                 )}
 
-                {ocrStatus === "done" && ocr?.text && ocrExpanded && (
+                {ocrStatus === "done" && ocrExpanded && (
                     <div className="px-4 pb-3 max-h-56 overflow-y-auto space-y-3">
-                        {/* Flat text */}
-                        <pre className="text-xs text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">
-                            {ocr.text}
-                        </pre>
-
-                        {/* Spatial breakdown */}
-                        {Array.isArray(ocr.lineData) && (ocr.lineData as MathpixLine[]).length > 0 && (
-                            <div>
-                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
-                                    Spatial layout ({(ocr.lineData as MathpixLine[]).length} lines)
-                                </p>
-                                <div className="space-y-1">
-                                    {(ocr.lineData as MathpixLine[]).map((line, i) => {
-                                        const ys = line.cnt?.map(([, y]) => y) ?? [];
-                                        const yTop = ys.length ? Math.min(...ys) : 0;
-                                        const yBot = ys.length ? Math.max(...ys) : 0;
-                                        const xs = line.cnt?.map(([x]) => x) ?? [];
-                                        const xLeft = xs.length ? Math.min(...xs) : 0;
-                                        return (
-                                            <div key={i} className="flex items-start gap-2 text-[11px]">
-                                                <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                                    line.type === "math"
-                                                        ? "bg-blue-100 text-blue-700"
-                                                        : line.type === "table"
-                                                        ? "bg-purple-100 text-purple-700"
-                                                        : line.type === "diagram"
-                                                        ? "bg-amber-100 text-amber-700"
-                                                        : "bg-slate-100 text-slate-600"
-                                                }`}>
-                                                    {line.type ?? "?"}
-                                                </span>
-                                                <span className="shrink-0 text-slate-400 font-mono">
-                                                    x{xLeft} y{yTop}–{yBot}
-                                                </span>
-                                                {line.is_handwritten && (
-                                                    <span className="shrink-0 text-[10px] text-orange-500">✎</span>
-                                                )}
-                                                <span className="text-slate-600 truncate">{line.text}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
+                        <div>
+                            <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                                Mathpix output (raw)
+                            </p>
+                            <pre className={`text-xs whitespace-pre-wrap font-mono leading-relaxed ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+                                {JSON.stringify(
+                                    {
+                                        text: ocr?.mathpixText ?? null,
+                                        lineData: ocr?.mathpixLineData ?? null,
+                                        wordData: ocr?.mathpixWordData ?? null,
+                                    },
+                                    null,
+                                    2,
+                                )}
+                            </pre>
+                        </div>
+                        <div>
+                            <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                                PP-OCRv5 output (raw)
+                            </p>
+                            <pre className={`text-xs whitespace-pre-wrap font-mono leading-relaxed ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+                                {JSON.stringify(
+                                    {
+                                        text: ocr?.ppocrText ?? null,
+                                        lineData: ocr?.lineData ?? null,
+                                        wordData: ocr?.wordData ?? null,
+                                    },
+                                    null,
+                                    2,
+                                )}
+                            </pre>
+                        </div>
+                        <div>
+                            <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                                Merged raw output
+                            </p>
+                            <pre className={`text-xs whitespace-pre-wrap font-mono leading-relaxed ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+                                {typeof ocr?.mergedRawOutput === "string"
+                                    ? ocr.mergedRawOutput
+                                    : JSON.stringify(ocr?.mergedRawOutput ?? null, null, 2)}
+                            </pre>
+                        </div>
+                        <div>
+                            <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                                Expression raw output
+                            </p>
+                            <pre className={`text-xs whitespace-pre-wrap font-mono leading-relaxed ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+                                {typeof ocr?.expressionRawOutput === "string"
+                                    ? ocr.expressionRawOutput
+                                    : JSON.stringify(ocr?.expressionRawOutput ?? null, null, 2)}
+                            </pre>
+                        </div>
                     </div>
                 )}
 
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+            <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
                 {messages.map((msg) => (
                     <div
                         key={msg.id}
@@ -389,7 +471,7 @@ export function AiChatPanel({ image, imageUrl, sessionId, onClose, onHighlight }
                             className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
                                 msg.role === "user"
                                     ? "bg-blue-600 text-white rounded-br-sm"
-                                    : "bg-slate-100 text-slate-800 rounded-bl-sm"
+                                    : (isDark ? "bg-slate-800 text-slate-100 rounded-bl-sm" : "bg-slate-100 text-slate-800 rounded-bl-sm")
                             }`}
                         >
                             <ReactMarkdown
@@ -408,12 +490,24 @@ export function AiChatPanel({ image, imageUrl, sessionId, onClose, onHighlight }
                                         <pre className="bg-black/10 rounded p-2 text-xs font-mono overflow-x-auto my-1">{children}</pre>
                                     ),
                                     a: ({ href, children }) => {
+                                        const termMatch = href?.match(/^#term-(.+)$/);
+                                        if (termMatch) {
+                                            const term = termMatch[1];
+                                            return (
+                                                <span
+                                                    className="inline-flex items-center gap-0.5 bg-blue-100 text-blue-700 border border-blue-300 rounded px-1 py-0.5 cursor-pointer font-medium text-[0.9em] hover:bg-blue-200 transition-colors"
+                                                    onClick={() => handleTermClick(term)}
+                                                >
+                                                    {children}
+                                                </span>
+                                            );
+                                        }
                                         const stepMatch = href?.match(/^#line-(\d+)-step-(\d+)$/);
                                         const lineMatch = !stepMatch ? href?.match(/^#line-(\d+)$/) : null;
                                         const activeMatch = stepMatch ?? lineMatch;
                                         if (activeMatch && image) {
                                             const lineIndex = parseInt(activeMatch[1]) - 1;
-                                            const lines = ocr?.lineData as MathpixLine[] | undefined;
+                                            const lines = parsedLineData;
                                             const line = lines?.[lineIndex];
                                             if (line?.cnt) {
                                                 let cnt: [number, number][];
@@ -430,8 +524,8 @@ export function AiChatPanel({ image, imageUrl, sessionId, onClose, onHighlight }
                                                 return (
                                                     <span
                                                         className="inline-flex items-center gap-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded px-1 py-0.5 cursor-default font-medium text-[0.8em] hover:bg-amber-200 transition-colors"
-                                                        onMouseEnter={() => onHighlight({ uid: image.uid, cnt })}
-                                                        onMouseLeave={() => onHighlight(null)}
+                                                        onMouseEnter={() => handleHighlight({ uid: image.uid, cnt })}
+                                                        onMouseLeave={() => handleHighlight(null)}
                                                     >
                                                         {children}
                                                     </span>
@@ -442,7 +536,7 @@ export function AiChatPanel({ image, imageUrl, sessionId, onClose, onHighlight }
                                     },
                                 }}
                             >
-                                {msg.content}
+                                {processMessageContent(msg.content)}
                             </ReactMarkdown>
                         </div>
                     </div>
@@ -450,7 +544,7 @@ export function AiChatPanel({ image, imageUrl, sessionId, onClose, onHighlight }
 
                 {isTyping && (
                     <div className="flex justify-start">
-                        <div className="bg-slate-100 rounded-2xl rounded-bl-sm px-4 py-3 flex gap-1 items-center">
+                        <div className={`${isDark ? "bg-slate-800" : "bg-slate-100"} rounded-2xl rounded-bl-sm px-4 py-3 flex gap-1 items-center`}>
                             <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:0ms]" />
                             <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:150ms]" />
                             <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:300ms]" />
@@ -462,13 +556,15 @@ export function AiChatPanel({ image, imageUrl, sessionId, onClose, onHighlight }
             </div>
 
             {/* Input */}
-            <div className="px-3 py-3 border-t border-slate-200 shrink-0 flex gap-2">
+            <div className={`px-3 py-3 border-t shrink-0 flex gap-2 ${isDark ? "border-slate-800" : "border-slate-200"}`}>
                 <input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder="Ask about this problem…"
-                    className="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 transition-all"
+                    className={`flex-1 text-sm border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 transition-all ${
+                        isDark ? "bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-400" : "border-slate-200"
+                    }`}
                     disabled={isTyping}
                 />
                 <button
