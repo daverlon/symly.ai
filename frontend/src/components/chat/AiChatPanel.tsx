@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { Sparkles, X, Send, ChevronDown, ChevronUp, Loader2, RefreshCw } from "lucide-react";
+import { Sparkles, X, Send, ChevronDown, ChevronUp, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import type { DeskImage } from "../../api/imageApi";
 import { getDeskImageOcr, clearDeskImageOcr, type OcrResult } from "../../api/ocrApi";
-import { sendChatMessage, type ChatMessage } from "../../api/chatApi";
+import { sendChatMessage, getChatHistory, deleteChatHistory, type ChatMessage } from "../../api/chatApi";
 
 type MathpixLine = {
     type?: string;
     text?: string;
+    latex?: string;
     cnt?: [number, number][];
+    region?: SpatialEntry["region"];
     is_handwritten?: boolean;
     is_printed?: boolean;
     confidence?: number;
@@ -22,6 +24,17 @@ type MathpixWord = {
     text?: string;
     latex?: string;
     confidence?: number;
+};
+
+type MergedRawBox = {
+    boxId?: string;
+    cnt?: [number, number][];
+    text?: string;
+};
+
+type ExpressionGroup = {
+    boxIds?: string[];
+    text?: string;
 };
 
 /**
@@ -47,6 +60,360 @@ function normalizeLineData(lineData: unknown): MathpixLine[] {
         } catch {
             return [];
         }
+    }
+    return [];
+}
+
+function parseJsonArray<T>(value: unknown): T[] {
+    if (Array.isArray(value)) return value as T[];
+    if (typeof value === "string") {
+        try {
+            const parsed = JSON.parse(value);
+            return Array.isArray(parsed) ? (parsed as T[]) : [];
+        } catch {
+            return [];
+        }
+    }
+    return [];
+}
+
+type SpatialEntry = {
+    cnt?: [number, number][];
+    region?: {
+        top_left_x: number;
+        top_left_y: number;
+        width: number;
+        height: number;
+    };
+    type?: string;
+    text?: string;
+    latex?: string;
+    confidence?: number;
+    is_handwritten?: boolean;
+};
+
+function extractCnt(entry: SpatialEntry): [number, number][] | null {
+    if (entry.cnt && entry.cnt.length >= 3) return entry.cnt;
+    const r = entry.region;
+    if (r && r.width > 0 && r.height > 0) {
+        const { top_left_x: x, top_left_y: y, width: w, height: h } = r;
+        return [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+    }
+    return null;
+}
+
+function truncateDebugText(s: string, max = 72): string {
+    const t = s.replace(/\s+/g, " ").trim();
+    return t.length > max ? `${t.slice(0, max)}…` : t;
+}
+
+function resolveGroupCnts(group: ExpressionGroup, boxes: MergedRawBox[]): [number, number][][] {
+    const ids = new Set(group.boxIds ?? []);
+    return boxes
+        .filter((b) => b.boxId && ids.has(b.boxId) && Array.isArray(b.cnt) && b.cnt.length >= 3)
+        .map((b) => b.cnt as [number, number][]);
+}
+
+/**
+ * Find the expression group (from Gemini) that contains the PP-OCR box for the given
+ * line index. PP-OCR box IDs are assigned sequentially: lineIndex 0 → "b1", 1 → "b2", etc.
+ * We search by boxId rather than positional index because Gemini may reorder groups.
+ */
+function findGroupForBoxId(boxId: string, groups: ExpressionGroup[], boxes: MergedRawBox[]): { boxIds: string[]; cnts: [number, number][][] } {
+    const group = groups.find((g) => (g.boxIds ?? []).includes(boxId));
+    if (!group) return { boxIds: [], cnts: [] };
+    return {
+        boxIds: group.boxIds ?? [],
+        cnts: resolveGroupCnts(group, boxes),
+    };
+}
+
+interface OcrTextDebugSectionProps {
+    title: string;
+    text: string | null;
+    isDark: boolean;
+}
+
+function OcrTextDebugSection({ title, text, isDark }: OcrTextDebugSectionProps) {
+    return (
+        <div>
+            <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                {title}
+            </p>
+            <pre className={`text-[11px] whitespace-pre-wrap font-mono leading-relaxed ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+                {text?.trim() ? text : "No data"}
+            </pre>
+        </div>
+    );
+}
+
+interface MergedBoxesDebugSectionProps {
+    boxes: MergedRawBox[];
+    isDark: boolean;
+    imageUid: string | undefined;
+    onHighlight: (region: HighlightRegion) => void;
+    onClearHighlight: () => void;
+}
+
+function MergedBoxesDebugSection({
+    boxes,
+    isDark,
+    imageUid,
+    onHighlight,
+    onClearHighlight,
+}: MergedBoxesDebugSectionProps) {
+    const rowClass = isDark
+        ? "hover:bg-amber-500/10 hover:border-amber-500/40 border-transparent"
+        : "hover:bg-amber-50 hover:border-amber-300/60 border-transparent";
+
+    function highlightBox(box: MergedRawBox) {
+        const cnt = extractCnt(box);
+        if (!imageUid || !cnt) return;
+        onHighlight({ uid: imageUid, cnts: [cnt] });
+    }
+
+    if (!boxes.length) {
+        return (
+            <div>
+                <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                    Merged PP-OCR boxes
+                </p>
+                <p className={`text-[11px] ${isDark ? "text-slate-600" : "text-slate-400"}`}>No boxes</p>
+            </div>
+        );
+    }
+
+    return (
+        <div>
+            <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                Merged PP-OCR boxes ({boxes.length}) — hover to highlight
+            </p>
+            <ul className="space-y-0.5">
+                {boxes.map((box, i) => {
+                    const cnt = extractCnt(box);
+                    const display = truncateDebugText(box.text ?? "");
+                    return (
+                        <li
+                            key={box.boxId ?? `box-${i}`}
+                            className={`text-[11px] font-mono px-2 py-1 rounded border transition-colors ${cnt ? `cursor-crosshair ${rowClass}` : "opacity-40 cursor-default"}`}
+                            onMouseEnter={() => highlightBox(box)}
+                            onMouseLeave={onClearHighlight}
+                        >
+                            <span className="font-semibold text-violet-500">{box.boxId ?? `[${i}]`}</span>
+                            {display ? <span className={`ml-1.5 ${isDark ? "text-slate-300" : "text-slate-600"}`}>{display}</span> : null}
+                            {!cnt ? <span className="ml-1.5 text-red-400">no bbox</span> : null}
+                        </li>
+                    );
+                })}
+            </ul>
+        </div>
+    );
+}
+
+interface ExpressionStepsDebugSectionProps {
+    groups: ExpressionGroup[];
+    boxes: MergedRawBox[];
+    isDark: boolean;
+    imageUid: string | undefined;
+    onHighlight: (region: HighlightRegion) => void;
+    onClearHighlight: () => void;
+}
+
+function ExpressionStepsDebugSection({
+    groups,
+    boxes,
+    isDark,
+    imageUid,
+    onHighlight,
+    onClearHighlight,
+}: ExpressionStepsDebugSectionProps) {
+    const rowClass = isDark
+        ? "hover:bg-amber-500/10 hover:border-amber-500/40 border-transparent"
+        : "hover:bg-amber-50 hover:border-amber-300/60 border-transparent";
+
+    function highlightGroup(group: ExpressionGroup) {
+        const cnts = resolveGroupCnts(group, boxes);
+        if (!imageUid || cnts.length === 0) return;
+        onHighlight({ uid: imageUid, cnts });
+    }
+
+    if (!groups.length) {
+        return (
+            <div>
+                <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                    Gemini expression steps
+                </p>
+                <p className={`text-[11px] ${isDark ? "text-slate-600" : "text-slate-400"}`}>No steps</p>
+            </div>
+        );
+    }
+
+    return (
+        <div>
+            <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                Gemini expression steps ({groups.length}) — hover to highlight
+            </p>
+            <ul className="space-y-0.5">
+                {groups.map((group, i) => {
+                    const cnts = resolveGroupCnts(group, boxes);
+                    const boxLabel = (group.boxIds ?? []).join(", ") || "—";
+                    const display = truncateDebugText(group.text ?? "");
+                    return (
+                        <li
+                            key={`step-${i}`}
+                            className={`text-[11px] font-mono px-2 py-1 rounded border transition-colors flex items-center gap-1 ${cnts.length ? `cursor-crosshair ${rowClass}` : "opacity-40 cursor-default"}`}
+                            onMouseEnter={() => highlightGroup(group)}
+                            onMouseLeave={onClearHighlight}
+                        >
+                            <span className="font-semibold text-amber-600 shrink-0">step {i + 1}</span>
+                            <span className={`shrink-0 ${isDark ? "text-slate-500" : "text-slate-400"}`}>[{boxLabel}]</span>
+                            {cnts.length > 1 ? (
+                                <span className="shrink-0 inline-flex items-center gap-0.5 bg-amber-200 text-amber-800 text-[10px] font-bold px-1 rounded">
+                                    ⬛×{cnts.length}
+                                </span>
+                            ) : null}
+                            {display ? <span className={`min-w-0 truncate ${isDark ? "text-slate-300" : "text-slate-600"}`}>{display}</span> : null}
+                            {cnts.length === 0 ? <span className="shrink-0 text-red-400">no bbox</span> : null}
+                        </li>
+                    );
+                })}
+            </ul>
+        </div>
+    );
+}
+
+interface OcrSpatialDebugSectionProps {
+    title: string;
+    indexClass: string;
+    text: string | null;
+    lineData: unknown;
+    wordData: unknown;
+    isDark: boolean;
+    imageUid: string | undefined;
+    onHighlight: (region: HighlightRegion) => void;
+    onClearHighlight: () => void;
+}
+
+function OcrSpatialDebugSection({
+    title,
+    indexClass,
+    text,
+    lineData,
+    wordData,
+    isDark,
+    imageUid,
+    onHighlight,
+    onClearHighlight,
+}: OcrSpatialDebugSectionProps) {
+    const lines = normalizeLineData(lineData);
+    const words = parseJsonArray<MathpixWord>(wordData);
+
+    const rowClass = isDark
+        ? "hover:bg-amber-500/10 hover:border-amber-500/40 border-transparent"
+        : "hover:bg-amber-50 hover:border-amber-300/60 border-transparent";
+
+    function highlightCnt(cnt: [number, number][] | null) {
+        if (!imageUid || !cnt) return;
+        onHighlight({ uid: imageUid, cnts: [cnt] });
+    }
+
+    return (
+        <div>
+            <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                {title}
+            </p>
+            {text ? (
+                <p className={`text-[10px] font-mono mb-2 leading-relaxed ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                    <span className="opacity-60">text: </span>
+                    {truncateDebugText(text, 140)}
+                </p>
+            ) : null}
+            {lines.length > 0 ? (
+                <div className="mb-2">
+                    <p className={`text-[9px] font-semibold uppercase tracking-wide mb-1 ${isDark ? "text-slate-600" : "text-slate-400"}`}>
+                        line_data ({lines.length}) — hover to highlight
+                    </p>
+                    <ul className="space-y-0.5">
+                        {lines.map((line, i) => {
+                            const cnt = extractCnt(line);
+                            const display = truncateDebugText(line.text ?? line.latex ?? "");
+                            return (
+                                <li
+                                    key={`line-${i}`}
+                                    className={`text-[11px] font-mono px-2 py-1 rounded border transition-colors ${cnt ? `cursor-crosshair ${rowClass}` : "opacity-40 cursor-default"}`}
+                                    onMouseEnter={() => highlightCnt(cnt)}
+                                    onMouseLeave={onClearHighlight}
+                                >
+                                    <span className={`font-semibold ${indexClass}`}>[{i}]</span>
+                                    {line.type ? <span className={`ml-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>{line.type}</span> : null}
+                                    {display ? <span className={`ml-1.5 ${isDark ? "text-slate-300" : "text-slate-600"}`}>{display}</span> : null}
+                                    {line.confidence != null ? (
+                                        <span className={`ml-1.5 ${isDark ? "text-slate-600" : "text-slate-400"}`}>
+                                            {(line.confidence * 100).toFixed(0)}%
+                                        </span>
+                                    ) : null}
+                                    {!cnt ? <span className="ml-1.5 text-red-400">no bbox</span> : null}
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </div>
+            ) : null}
+            {words.length > 0 ? (
+                <div>
+                    <p className={`text-[9px] font-semibold uppercase tracking-wide mb-1 ${isDark ? "text-slate-600" : "text-slate-400"}`}>
+                        word_data ({words.length}) — hover to highlight
+                    </p>
+                    <ul className="space-y-0.5">
+                        {words.map((word, i) => {
+                            const cnt = extractCnt(word);
+                            const display = truncateDebugText(word.text ?? word.latex ?? "");
+                            return (
+                                <li
+                                    key={`word-${i}`}
+                                    className={`text-[11px] font-mono px-2 py-1 rounded border transition-colors ${cnt ? `cursor-crosshair ${rowClass}` : "opacity-40 cursor-default"}`}
+                                    onMouseEnter={() => highlightCnt(cnt)}
+                                    onMouseLeave={onClearHighlight}
+                                >
+                                    <span className={`font-semibold ${indexClass}`}>[{i}]</span>
+                                    {word.type ? <span className={`ml-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>{word.type}</span> : null}
+                                    {display ? <span className={`ml-1.5 ${isDark ? "text-slate-300" : "text-slate-600"}`}>{display}</span> : null}
+                                    {word.confidence != null ? (
+                                        <span className={`ml-1.5 ${isDark ? "text-slate-600" : "text-slate-400"}`}>
+                                            {(word.confidence * 100).toFixed(0)}%
+                                        </span>
+                                    ) : null}
+                                    {!cnt ? <span className="ml-1.5 text-red-400">no bbox</span> : null}
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </div>
+            ) : null}
+            {lines.length === 0 && words.length === 0 && !text ? (
+                <p className={`text-[11px] ${isDark ? "text-slate-600" : "text-slate-400"}`}>No data</p>
+            ) : null}
+        </div>
+    );
+}
+
+function parseMergedRawBoxes(value: unknown): MergedRawBox[] {
+    if (!value) return [];
+    if (Array.isArray(value)) return value as MergedRawBox[];
+    if (typeof value === "string") {
+        try {
+            const parsed = JSON.parse(value);
+            if (Array.isArray(parsed)) return parsed as MergedRawBox[];
+            if (parsed && typeof parsed === "object" && Array.isArray((parsed as { ppocrLineData?: unknown[] }).ppocrLineData)) {
+                return (parsed as { ppocrLineData: MergedRawBox[] }).ppocrLineData;
+            }
+            return [];
+        } catch {
+            return [];
+        }
+    }
+    if (typeof value === "object" && Array.isArray((value as { ppocrLineData?: unknown[] }).ppocrLineData)) {
+        return (value as { ppocrLineData: MergedRawBox[] }).ppocrLineData;
     }
     return [];
 }
@@ -143,7 +510,7 @@ function computeStepCnt(
 
 export type HighlightRegion = {
     uid: string;
-    cnt: [number, number][];
+    cnts: [number, number][][];
 } | null;
 
 interface AiChatPanelProps {
@@ -171,6 +538,7 @@ const WELCOME_MESSAGE: Message = {
 
 export function AiChatPanel({ isDark = false, image, imageUrl, sessionId, onClose, onHighlight }: AiChatPanelProps) {
     const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
+    const [historyStatus, setHistoryStatus] = useState<"idle" | "loading" | "done">("idle");
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
     const [ocrStatus, setOcrStatus] = useState<OcrStatus>("idle");
@@ -179,6 +547,8 @@ export function AiChatPanel({ isDark = false, image, imageUrl, sessionId, onClos
     const bottomRef = useRef<HTMLDivElement | null>(null);
     const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const parsedLineData = normalizeLineData(ocr?.lineData);
+    const mergedRawBoxes = parseMergedRawBoxes(ocr?.mergedRawOutput);
+    const expressionGroups = parseJsonArray<ExpressionGroup>(ocr?.expressionRawOutput);
 
     const handleHighlight = (region: HighlightRegion | null) => {
         if (highlightTimeoutRef.current) {
@@ -195,6 +565,8 @@ export function AiChatPanel({ isDark = false, image, imageUrl, sessionId, onClos
         }
     };
 
+    const handleDebugClearHighlight = () => handleHighlight(null);
+
     const handleTermClick = (term: string) => {
         setInput(`tell me about ${term}`);
     };
@@ -207,6 +579,12 @@ export function AiChatPanel({ isDark = false, image, imageUrl, sessionId, onClos
         });
     };
 
+    function resolveGroupForLine(lineIndex: number): { boxIds: string[]; cnts: [number, number][][] } {
+        // PP-OCR boxes are assigned sequential IDs: lineIndex 0 → "b1", 1 → "b2", etc.
+        const boxId = `b${lineIndex + 1}`;
+        return findGroupForBoxId(boxId, expressionGroups, mergedRawBoxes);
+    }
+
     function fetchOcr(sid: string, uid: string) {
         setOcrStatus("loading");
         setOcr(null);
@@ -218,21 +596,59 @@ export function AiChatPanel({ isDark = false, image, imageUrl, sessionId, onClos
             .catch(() => setOcrStatus("error"));
     }
 
-    // Reset state when image changes
+    function fetchHistory(sid: string, uid: string) {
+        setHistoryStatus("loading");
+        getChatHistory(sid, uid)
+            .then((history) => {
+                if (history.length === 0) {
+                    setMessages([WELCOME_MESSAGE]);
+                } else {
+                    setMessages([
+                        WELCOME_MESSAGE,
+                        ...history.map((m) => ({
+                            id: crypto.randomUUID(),
+                            role: m.role,
+                            content: m.content,
+                        })),
+                    ]);
+                }
+                setHistoryStatus("done");
+            })
+            .catch(() => {
+                setMessages([WELCOME_MESSAGE]);
+                setHistoryStatus("done");
+            });
+    }
+
+    // Reset + reload when image changes
     useEffect(() => {
         setMessages([WELCOME_MESSAGE]);
+        setHistoryStatus("idle");
         setInput("");
         setOcr(null);
         setOcrExpanded(false);
         setOcrStatus("idle");
-    }, [image?.uid, sessionId]);
+        onHighlight(null);
+    }, [image?.uid, sessionId, onHighlight]);
 
-    // Automatically load OCR when chat opens
+    // Clear image highlight when debug panel collapses
+    useEffect(() => {
+        if (!ocrExpanded) onHighlight(null);
+    }, [ocrExpanded, onHighlight]);
+
+    // Load OCR + chat history when image opens
     useEffect(() => {
         if (image && sessionId) {
             fetchOcr(sessionId, image.uid);
+            fetchHistory(sessionId, image.uid);
         }
     }, [image?.uid, sessionId]);
+
+    async function handleDeleteHistory() {
+        if (!image || !sessionId || isTyping) return;
+        await deleteChatHistory(sessionId, image.uid).catch(() => {});
+        setMessages([WELCOME_MESSAGE]);
+    }
 
     async function handleRegenerate() {
         if (!image || !sessionId || ocrStatus === "loading") return;
@@ -316,15 +732,28 @@ export function AiChatPanel({ isDark = false, image, imageUrl, sessionId, onClos
                     <span className={`text-sm font-semibold truncate ${isDark ? "text-slate-100" : "text-slate-800"}`}>AI Tutor</span>
                 </div>
 
-                <button
-                    onClick={onClose}
-                    className={`w-7 h-7 shrink-0 flex items-center justify-center rounded-md transition-colors ${
-                        isDark ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-                    }`}
-                    aria-label="Close chat"
-                >
-                    <X size={15} />
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                    <button
+                        onClick={handleDeleteHistory}
+                        disabled={isTyping || messages.length <= 1}
+                        className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
+                            isDark ? "text-slate-500 hover:text-red-400 hover:bg-slate-800" : "text-slate-400 hover:text-red-500 hover:bg-red-50"
+                        }`}
+                        aria-label="Delete chat history"
+                        title="Delete chat history"
+                    >
+                        <Trash2 size={14} />
+                    </button>
+                    <button
+                        onClick={onClose}
+                        className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors ${
+                            isDark ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800" : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                        }`}
+                        aria-label="Close chat"
+                    >
+                        <X size={15} />
+                    </button>
+                </div>
             </div>
 
             {/* OCR context bar */}
@@ -402,59 +831,38 @@ export function AiChatPanel({ isDark = false, image, imageUrl, sessionId, onClos
                 )}
 
                 {ocrStatus === "done" && ocrExpanded && (
-                    <div className="px-4 pb-3 max-h-56 overflow-y-auto space-y-3">
-                        <div>
-                            <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-                                Mathpix output (raw)
-                            </p>
-                            <pre className={`text-xs whitespace-pre-wrap font-mono leading-relaxed ${isDark ? "text-slate-300" : "text-slate-600"}`}>
-                                {JSON.stringify(
-                                    {
-                                        text: ocr?.mathpixText ?? null,
-                                        lineData: ocr?.mathpixLineData ?? null,
-                                        wordData: ocr?.mathpixWordData ?? null,
-                                    },
-                                    null,
-                                    2,
-                                )}
-                            </pre>
-                        </div>
-                        <div>
-                            <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-                                PP-OCRv5 output (raw)
-                            </p>
-                            <pre className={`text-xs whitespace-pre-wrap font-mono leading-relaxed ${isDark ? "text-slate-300" : "text-slate-600"}`}>
-                                {JSON.stringify(
-                                    {
-                                        text: ocr?.ppocrText ?? null,
-                                        lineData: ocr?.lineData ?? null,
-                                        wordData: ocr?.wordData ?? null,
-                                    },
-                                    null,
-                                    2,
-                                )}
-                            </pre>
-                        </div>
-                        <div>
-                            <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-                                Merged raw output
-                            </p>
-                            <pre className={`text-xs whitespace-pre-wrap font-mono leading-relaxed ${isDark ? "text-slate-300" : "text-slate-600"}`}>
-                                {typeof ocr?.mergedRawOutput === "string"
-                                    ? ocr.mergedRawOutput
-                                    : JSON.stringify(ocr?.mergedRawOutput ?? null, null, 2)}
-                            </pre>
-                        </div>
-                        <div>
-                            <p className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
-                                Expression raw output
-                            </p>
-                            <pre className={`text-xs whitespace-pre-wrap font-mono leading-relaxed ${isDark ? "text-slate-300" : "text-slate-600"}`}>
-                                {typeof ocr?.expressionRawOutput === "string"
-                                    ? ocr.expressionRawOutput
-                                    : JSON.stringify(ocr?.expressionRawOutput ?? null, null, 2)}
-                            </pre>
-                        </div>
+                    <div className="px-4 pb-3 max-h-80 overflow-y-auto space-y-4">
+                        <OcrTextDebugSection
+                            title="Mathpix (text only)"
+                            text={ocr?.mathpixText ?? null}
+                            isDark={isDark}
+                        />
+                        <OcrSpatialDebugSection
+                            title="PP-OCRv5 spatial"
+                            indexClass="text-emerald-500"
+                            text={ocr?.ppocrText ?? null}
+                            lineData={ocr?.lineData}
+                            wordData={ocr?.wordData}
+                            isDark={isDark}
+                            imageUid={image?.uid}
+                            onHighlight={handleHighlight}
+                            onClearHighlight={handleDebugClearHighlight}
+                        />
+                        <MergedBoxesDebugSection
+                            boxes={mergedRawBoxes}
+                            isDark={isDark}
+                            imageUid={image?.uid}
+                            onHighlight={handleHighlight}
+                            onClearHighlight={handleDebugClearHighlight}
+                        />
+                        <ExpressionStepsDebugSection
+                            groups={expressionGroups}
+                            boxes={mergedRawBoxes}
+                            isDark={isDark}
+                            imageUid={image?.uid}
+                            onHighlight={handleHighlight}
+                            onClearHighlight={handleDebugClearHighlight}
+                        />
                     </div>
                 )}
 
@@ -521,11 +929,22 @@ export function AiChatPanel({ isDark = false, image, imageUrl, sessionId, onClos
                                                 } else {
                                                     cnt = line.cnt;
                                                 }
+                                                const grouped = resolveGroupForLine(lineIndex);
+                                                const cnts = grouped.cnts.length > 0 ? grouped.cnts : [cnt];
+                                                const debugBoxIds = grouped.boxIds;
                                                 return (
                                                     <span
                                                         className="inline-flex items-center gap-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded px-1 py-0.5 cursor-default font-medium text-[0.8em] hover:bg-amber-200 transition-colors"
-                                                        onMouseEnter={() => handleHighlight({ uid: image.uid, cnt })}
+                                                        onMouseEnter={() => handleHighlight({ uid: image.uid, cnts })}
                                                         onMouseLeave={() => handleHighlight(null)}
+                                                        onClick={() => {
+                                                            console.log("[symbiol] chat reference highlight", {
+                                                                lineIndex: lineIndex + 1,
+                                                                boxIds: debugBoxIds,
+                                                                polygonCount: cnts.length,
+                                                                cnts,
+                                                            });
+                                                        }}
                                                     >
                                                         {children}
                                                     </span>
