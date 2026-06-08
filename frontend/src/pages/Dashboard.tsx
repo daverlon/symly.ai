@@ -100,6 +100,16 @@ export default function Dashboard() {
         setTimeout(() => setDeskLayoutRevision((r) => r + 1), 320);
     }
 
+    // While chat is open, keep chatImage in sync with the selected desk image
+    useEffect(() => {
+        if (!chatOpen || selectedIndex === null) return;
+        const img = deskImages[selectedIndex];
+        if (img && img.uid !== chatImage?.uid) {
+            setChatImage(img);
+            setHighlightRegion(null);
+        }
+    }, [selectedIndex, chatOpen, deskImages]);
+
     function handleCloseChat() {
         setChatOpen(false);
         setHighlightRegion(null);
