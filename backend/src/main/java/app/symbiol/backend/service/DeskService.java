@@ -1,20 +1,16 @@
 package app.symbiol.backend.service;
 
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import javax.imageio.ImageIO;
 
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import app.symbiol.backend.dto.DeskImageDto;
@@ -33,7 +29,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 public class DeskService {
-    private static final Pattern INLINE_MATH_DELIMITER_PATTERN = Pattern.compile("\\$([^$\\n]+)\\$");
 
     private final DeskImageRepository deskImageRepository;
     private final SessionRepository sessionRepository;
@@ -213,7 +208,7 @@ public class DeskService {
         Image image = deskImage.getImage();
 
         if (image.getOcrText() != null) {
-            return new OcrResult(image.getOcrText(), image.getOcrLineData(), image.getOcrWordData(), null, null, null, null, null, null);
+            return cachedOcrResult(image);
         }
 
         byte[] imageBytes = imageStorageService.load(image.getFileName());
@@ -226,49 +221,67 @@ public class DeskService {
 
             MathpixService.OcrResult local = localOcrService.extractText(imageBytes, contentType);
             MathpixService.OcrResult mathpix = mathpixService.extractText(imageBytes, contentType);
-            String mergedRawOutput = buildMergedRawOutput(imageBytes, local.lineDataJson());
-            String expressionRawOutput = geminiService.buildExpressionRawOutput(mergedRawOutput);
+
+            // Prepare PP-OCR data once: assign stable box IDs then simplify to {boxId, cnt, text}
+            JsonNode ppocrSimplified = simplifyPpocrLineData(
+                    withSequentialBoxIds(parseJsonOrNull(local.lineDataJson())));
+            String mathpixText = mathpix.text() != null ? mathpix.text() : "";
+
+            // Full merged view (all boxes) stored for debug UI
+            String mergedRawOutput = buildMergedRawOutputFromNodes(ppocrSimplified, mathpixText);
+
+            // Expression grouping — uses Mathpix line_data to split when box count is high
+            String expressionRawOutput = buildExpressionRawOutputWithSplitting(
+                    ppocrSimplified, mathpixText, imageBytes, contentType);
 
             String ppocrText = local.text() != null ? local.text() : "";
-            String mathpixText = mathpix.text() != null ? mathpix.text() : "";
             String finalText = !mathpixText.isBlank() ? mathpixText : ppocrText;
 
-            image.setOcrText(finalText);
-            image.setOcrLineData(local.lineDataJson());
-            image.setOcrWordData(local.wordDataJson());
+            persistOcrCache(image, finalText, local.lineDataJson(), local.wordDataJson(),
+                    ppocrText, mathpixText, mergedRawOutput, expressionRawOutput);
             imageRepository.save(image);
-            return new OcrResult(
-                image.getOcrText(),
-                image.getOcrLineData(),
-                image.getOcrWordData(),
-                mathpixText,
-                ppocrText,
-                mathpix.lineDataJson(),
-                mathpix.wordDataJson(),
-                mergedRawOutput,
-                expressionRawOutput
-            );
+            return cachedOcrResult(image);
         }
 
-        // Fallback to Mathpix only
+        // Fallback to Mathpix text only (no local PP-OCR)
         MathpixService.OcrResult raw = mathpixService.extractText(imageBytes, contentType);
-
-        image.setOcrText(raw.text() != null ? raw.text() : "");
-        image.setOcrLineData(raw.lineDataJson());
-        image.setOcrWordData(raw.wordDataJson());
+        String mathpixText = raw.text() != null ? raw.text() : "";
+        persistOcrCache(image, mathpixText, null, null, null, mathpixText, null, null);
         imageRepository.save(image);
 
+        return cachedOcrResult(image);
+    }
+
+    private OcrResult cachedOcrResult(Image image) {
         return new OcrResult(
             image.getOcrText(),
             image.getOcrLineData(),
             image.getOcrWordData(),
-            raw.mathpixText(),
+            image.getOcrMathpixText(),
+            image.getOcrPpocrText(),
             null,
-            raw.lineDataJson(),
-            raw.wordDataJson(),
             null,
-            null
+            image.getOcrMergedRawOutput(),
+            image.getOcrExpressionRawOutput()
         );
+    }
+
+    private void persistOcrCache(
+            Image image,
+            String finalText,
+            String lineDataJson,
+            String wordDataJson,
+            String ppocrText,
+            String mathpixText,
+            String mergedRawOutput,
+            String expressionRawOutput) {
+        image.setOcrText(finalText);
+        image.setOcrLineData(lineDataJson);
+        image.setOcrWordData(wordDataJson);
+        image.setOcrPpocrText(ppocrText);
+        image.setOcrMathpixText(mathpixText);
+        image.setOcrMergedRawOutput(mergedRawOutput);
+        image.setOcrExpressionRawOutput(expressionRawOutput);
     }
 
     /** Clears cached Mathpix OCR so the next getOcrResult call re-runs against the API. */
@@ -284,6 +297,10 @@ public class DeskService {
         image.setOcrText(null);
         image.setOcrLineData(null);
         image.setOcrWordData(null);
+        image.setOcrPpocrText(null);
+        image.setOcrMathpixText(null);
+        image.setOcrMergedRawOutput(null);
+        image.setOcrExpressionRawOutput(null);
         imageRepository.save(image);
     }
 
@@ -293,112 +310,248 @@ public class DeskService {
         return "image/jpeg";
     }
 
-    private String buildMergedRawOutput(byte[] imageBytes, String lineDataJson) {
-        if (lineDataJson == null || lineDataJson.isBlank()) {
-            return "[]";
+    private String buildMergedRawOutputFromNodes(JsonNode ppocrLineData, String mathpixText) {
+        try {
+            ObjectNode payload = objectMapper.createObjectNode();
+            payload.set("ppocrLineData", ppocrLineData);
+            payload.put("mathpixText", mathpixText != null ? mathpixText : "");
+            return objectMapper.writeValueAsString(payload);
+        } catch (IOException e) {
+            log.error("Failed to build merged raw output", e);
+            return "{}";
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Per-step Gemini expression grouping (Mathpix step bbox → intersecting PP-OCR boxes)
+    // ---------------------------------------------------------------------------
+
+    /**
+     * When a single Mathpix step has more than this many intersecting PP-OCR boxes,
+     * it is split further by vertical gap before being sent to Gemini.
+     * This handles cases where Mathpix groups an entire multi-equation derivation into
+     * one line_data entry (e.g. a system of equations + all its matrix representations).
+     */
+    private static final int STEP_MAX_BOXES = 20;
+
+    /**
+     * For each Mathpix line_data entry (one semantic step/block), finds the PP-OCR boxes
+     * that spatially intersect that entry's bounding box and calls Gemini with only those
+     * boxes + that step's Mathpix text. This keeps each Gemini call small and focused.
+     * When a single Mathpix entry has too many boxes, y-gap splitting is applied within it.
+     * Falls back to a single full-page call if Mathpix line_data is unavailable.
+     */
+    private String buildExpressionRawOutputWithSplitting(
+            JsonNode ppocrSimplified, String mathpixText, byte[] imageBytes, String contentType) {
+
+        String mathpixLineDataJson = mathpixService.extractLineDataJson(imageBytes, contentType);
+        if (mathpixLineDataJson == null) {
+            log.warn("Mathpix line_data unavailable; falling back to single Gemini call for {} boxes",
+                    ppocrSimplified.isArray() ? ppocrSimplified.size() : 0);
+            return geminiService.buildExpressionRawOutput(
+                    buildMergedRawOutputFromNodes(ppocrSimplified, mathpixText));
         }
 
         try {
-            JsonNode root = objectMapper.readTree(lineDataJson);
-            if (!root.isArray()) {
-                return "[]";
+            JsonNode mathpixSteps = objectMapper.readTree(mathpixLineDataJson);
+            if (!mathpixSteps.isArray() || mathpixSteps.isEmpty()) {
+                log.warn("Mathpix returned empty line_data; falling back to single Gemini call");
+                return geminiService.buildExpressionRawOutput(
+                        buildMergedRawOutputFromNodes(ppocrSimplified, mathpixText));
             }
 
-            BufferedImage originalImage = ImageIO.read(new ByteArrayInputStream(imageBytes));
-            if (originalImage == null) {
-                return "[]";
-            }
+            log.info("Per-step Gemini grouping: {} Mathpix steps, {} PP-OCR boxes",
+                    mathpixSteps.size(), ppocrSimplified.isArray() ? ppocrSimplified.size() : 0);
 
-            ArrayNode merged = objectMapper.createArrayNode();
-            int idx = 1;
-            for (JsonNode node : root) {
-                JsonNode cnt = node.get("cnt");
-                if (cnt == null || !cnt.isArray() || cnt.size() < 4) {
+            com.fasterxml.jackson.databind.node.ArrayNode allResults = objectMapper.createArrayNode();
+            int stepIdx = 0;
+
+            for (JsonNode mathpixStep : mathpixSteps) {
+                stepIdx++;
+                String stepText = mathpixStep.path("text").asText("").strip();
+                if (stepText.isBlank()) continue;
+
+                // Find the PP-OCR boxes whose AABB intersects this Mathpix step's bbox
+                int[] stepAabb = computeAabb(mathpixStep.path("cnt"));
+                List<JsonNode> intersecting = findIntersectingBoxes(ppocrSimplified, stepAabb);
+
+                if (intersecting.isEmpty()) {
+                    log.debug("Mathpix step {}/{} has no intersecting PP-OCR boxes; skipping",
+                            stepIdx, mathpixSteps.size());
                     continue;
                 }
 
-                int minX = Integer.MAX_VALUE;
-                int minY = Integer.MAX_VALUE;
-                int maxX = Integer.MIN_VALUE;
-                int maxY = Integer.MIN_VALUE;
-                for (JsonNode point : cnt) {
-                    if (!point.isArray() || point.size() < 2) {
-                        continue;
+                // When this Mathpix entry spans too many boxes (Mathpix grouped a large derivation
+                // into a single block), split it by vertical gap before calling Gemini
+                List<List<JsonNode>> subGroups = intersecting.size() > STEP_MAX_BOXES
+                        ? splitByYGap(intersecting)
+                        : List.of(intersecting);
+
+                log.info("Mathpix step {}/{}: {} PP-OCR boxes → {} Gemini call(s)",
+                        stepIdx, mathpixSteps.size(), intersecting.size(), subGroups.size());
+
+                int subIdx = 0;
+                for (List<JsonNode> subBoxes : subGroups) {
+                    subIdx++;
+                    if (subBoxes.isEmpty()) continue;
+
+                    com.fasterxml.jackson.databind.node.ArrayNode stepArray = objectMapper.createArrayNode();
+                    subBoxes.forEach(stepArray::add);
+
+                    // Each Gemini call gets the sub-group's PP-OCR boxes + the full step's Mathpix text
+                    String stepMerged = buildMergedRawOutputFromNodes(stepArray, stepText);
+                    String stepResult = geminiService.buildExpressionRawOutput(stepMerged);
+
+                    if (stepResult != null) {
+                        try {
+                            JsonNode parsed = objectMapper.readTree(stepResult);
+                            if (parsed.isArray()) {
+                                for (JsonNode item : parsed) allResults.add(item);
+                            }
+                        } catch (IOException e) {
+                            log.warn("Could not parse Gemini result for step {}/{} sub {}", stepIdx, mathpixSteps.size(), subIdx, e);
+                        }
                     }
-                    int x = point.get(0).asInt();
-                    int y = point.get(1).asInt();
-                    minX = Math.min(minX, x);
-                    minY = Math.min(minY, y);
-                    maxX = Math.max(maxX, x);
-                    maxY = Math.max(maxY, y);
                 }
-
-                if (minX == Integer.MAX_VALUE || minY == Integer.MAX_VALUE) {
-                    continue;
-                }
-
-                int margin = 8;
-                minX = Math.max(0, minX - margin);
-                minY = Math.max(0, minY - margin);
-                maxX = Math.min(originalImage.getWidth(), maxX + margin);
-                maxY = Math.min(originalImage.getHeight(), maxY + margin);
-
-                int width = maxX - minX;
-                int height = maxY - minY;
-                if (width <= 0 || height <= 0) {
-                    continue;
-                }
-
-                BufferedImage cropped = originalImage.getSubimage(minX, minY, width, height);
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                ImageIO.write(cropped, "png", baos);
-                String mathpixRegionText = mathpixService.extractTextOnly(baos.toByteArray(), "image/png");
-
-                ObjectNode item = objectMapper.createObjectNode();
-                item.put("boxId", "b" + idx++);
-                item.set("cnt", cnt.deepCopy());
-                item.put("text", normalizeMathpixText(mathpixRegionText));
-                merged.add(item);
             }
 
-            return objectMapper.writeValueAsString(merged);
+            log.info("Per-step Gemini complete: {} total expression steps from {} Mathpix entries",
+                    allResults.size(), stepIdx);
+            return objectMapper.writeValueAsString(allResults);
+
         } catch (IOException e) {
-            log.error("Failed to build merged raw output", e);
-            return "[]";
+            log.error("Failed during per-step Gemini processing; falling back to single call", e);
+            return geminiService.buildExpressionRawOutput(
+                    buildMergedRawOutputFromNodes(ppocrSimplified, mathpixText));
         }
     }
 
-    private String normalizeMathpixText(String text) {
-        if (text == null) {
-            return "";
-        }
-        String trimmed = text.trim();
-        if (trimmed.startsWith("$$") && trimmed.endsWith("$$") && trimmed.length() >= 4) {
-            return trimmed.substring(2, trimmed.length() - 2).trim();
-        }
-        if (trimmed.startsWith("$") && trimmed.endsWith("$") && trimmed.length() >= 2) {
-            trimmed = trimmed.substring(1, trimmed.length() - 1).trim();
-        }
-
-        // Remove inline $...$ math delimiters while preserving likely currency.
-        Matcher matcher = INLINE_MATH_DELIMITER_PATTERN.matcher(trimmed);
-        StringBuffer sb = new StringBuffer();
-        while (matcher.find()) {
-            String inner = matcher.group(1);
-            if (looksLikeCurrency(inner)) {
-                matcher.appendReplacement(sb, Matcher.quoteReplacement(matcher.group(0)));
-            } else {
-                matcher.appendReplacement(sb, Matcher.quoteReplacement(inner.trim()));
+    /**
+     * Returns all PP-OCR boxes whose AABB intersects the given target AABB,
+     * sorted top-to-bottom by centroid Y.
+     */
+    private List<JsonNode> findIntersectingBoxes(JsonNode ppocrBoxes, int[] targetAabb) {
+        List<JsonNode> result = new ArrayList<>();
+        for (JsonNode box : ppocrBoxes) {
+            if (overlapArea(computeAabb(box.path("cnt")), targetAabb) > 0) {
+                result.add(box);
             }
         }
-        matcher.appendTail(sb);
-        return sb.toString().trim();
+        result.sort(Comparator.comparingInt(box -> {
+            int[] aabb = computeAabb(box.path("cnt"));
+            return (aabb[1] + aabb[3]) / 2;
+        }));
+        return result;
     }
 
-    private boolean looksLikeCurrency(String inner) {
-        String s = inner.trim();
-        // Keep patterns such as "$5", "$12.50", "$1,200.00"
-        return s.matches("\\d{1,3}(,\\d{3})*(\\.\\d{1,2})?");
+    /**
+     * Splits a list of PP-OCR boxes into sub-groups using vertical gap detection.
+     * Threshold = median consecutive centroid-Y gap × 2.5, minimum 20 px.
+     * Applied as a fallback when a single Mathpix step has too many intersecting boxes.
+     */
+    private List<List<JsonNode>> splitByYGap(List<JsonNode> boxes) {
+        // Boxes are already sorted by centroid Y from findIntersectingBoxes
+        int n = boxes.size();
+        if (n <= 1) return List.of(boxes);
+
+        int[] ys = new int[n];
+        for (int i = 0; i < n; i++) {
+            int[] aabb = computeAabb(boxes.get(i).path("cnt"));
+            ys[i] = (aabb[1] + aabb[3]) / 2;
+        }
+
+        int[] gaps = new int[n - 1];
+        for (int i = 0; i < gaps.length; i++) gaps[i] = ys[i + 1] - ys[i];
+
+        int[] sortedGaps = gaps.clone();
+        Arrays.sort(sortedGaps);
+        double medianGap = sortedGaps[sortedGaps.length / 2];
+        double threshold = Math.max(medianGap * 2.5, 20.0);
+
+        List<List<JsonNode>> result = new ArrayList<>();
+        List<JsonNode> current = new ArrayList<>();
+        current.add(boxes.get(0));
+
+        for (int i = 1; i < n; i++) {
+            if (gaps[i - 1] > threshold) {
+                result.add(current);
+                current = new ArrayList<>();
+            }
+            current.add(boxes.get(i));
+        }
+        result.add(current);
+
+        log.info("y-gap split: {} boxes → {} sub-groups (median gap {}px, threshold {:.0f}px)",
+                n, result.size(), (int) medianGap, threshold);
+        return result;
+    }
+
+    /** Computes the axis-aligned bounding box of a cnt polygon as [minX, minY, maxX, maxY]. */
+    private int[] computeAabb(JsonNode cntArray) {
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
+        if (cntArray != null && cntArray.isArray()) {
+            for (JsonNode pt : cntArray) {
+                if (pt.isArray() && pt.size() >= 2) {
+                    int x = pt.get(0).asInt();
+                    int y = pt.get(1).asInt();
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+            }
+        }
+        return (minX == Integer.MAX_VALUE) ? new int[]{0, 0, 0, 0} : new int[]{minX, minY, maxX, maxY};
+    }
+
+    /** Returns the area of the intersection of two AABBs [minX, minY, maxX, maxY]. */
+    private double overlapArea(int[] a, int[] b) {
+        int ox = Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0]));
+        int oy = Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+        return (double) ox * oy;
+    }
+
+    private JsonNode parseJsonOrNull(String json) {
+        if (json == null || json.isBlank()) {
+            return objectMapper.nullNode();
+        }
+        try {
+            return objectMapper.readTree(json);
+        } catch (IOException e) {
+            return objectMapper.nullNode();
+        }
+    }
+
+    private JsonNode withSequentialBoxIds(JsonNode ppocrLineData) {
+        if (ppocrLineData == null || !ppocrLineData.isArray()) {
+            return objectMapper.nullNode();
+        }
+        int i = 1;
+        for (JsonNode node : ppocrLineData) {
+            if (node instanceof ObjectNode obj) {
+                obj.put("boxId", "b" + i++);
+            }
+        }
+        return ppocrLineData;
+    }
+
+    private JsonNode simplifyPpocrLineData(JsonNode ppocrLineData) {
+        if (ppocrLineData == null || !ppocrLineData.isArray()) {
+            return objectMapper.createArrayNode();
+        }
+        com.fasterxml.jackson.databind.node.ArrayNode out = objectMapper.createArrayNode();
+        for (JsonNode node : ppocrLineData) {
+            if (!(node instanceof ObjectNode obj)) {
+                continue;
+            }
+            ObjectNode simple = objectMapper.createObjectNode();
+            simple.put("boxId", obj.path("boxId").asText(""));
+            simple.set("cnt", obj.path("cnt").deepCopy());
+            simple.put("text", obj.path("text").asText(""));
+            out.add(simple);
+        }
+        return out;
     }
 
 }

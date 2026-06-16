@@ -33,7 +33,19 @@ public class Image {
     private String ocrLineData; // cached Mathpix line_data JSON (spatial layout)
 
     @Column(columnDefinition = "TEXT")
-    private String ocrWordData; // cached Mathpix word_data JSON (word-level bounding boxes)
+    private String ocrWordData; // reserved; PP-OCR word_data when available
+
+    @Column(columnDefinition = "TEXT")
+    private String ocrPpocrText;
+
+    @Column(columnDefinition = "TEXT")
+    private String ocrMathpixText;
+
+    @Column(columnDefinition = "TEXT")
+    private String ocrMergedRawOutput;
+
+    @Column(columnDefinition = "TEXT")
+    private String ocrExpressionRawOutput;
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "session_id")
@@ -91,6 +103,38 @@ public class Image {
 
     public void setOcrWordData(String ocrWordData) {
         this.ocrWordData = ocrWordData;
+    }
+
+    public String getOcrPpocrText() {
+        return ocrPpocrText;
+    }
+
+    public void setOcrPpocrText(String ocrPpocrText) {
+        this.ocrPpocrText = ocrPpocrText;
+    }
+
+    public String getOcrMathpixText() {
+        return ocrMathpixText;
+    }
+
+    public void setOcrMathpixText(String ocrMathpixText) {
+        this.ocrMathpixText = ocrMathpixText;
+    }
+
+    public String getOcrMergedRawOutput() {
+        return ocrMergedRawOutput;
+    }
+
+    public void setOcrMergedRawOutput(String ocrMergedRawOutput) {
+        this.ocrMergedRawOutput = ocrMergedRawOutput;
+    }
+
+    public String getOcrExpressionRawOutput() {
+        return ocrExpressionRawOutput;
+    }
+
+    public void setOcrExpressionRawOutput(String ocrExpressionRawOutput) {
+        this.ocrExpressionRawOutput = ocrExpressionRawOutput;
     }
 
 }

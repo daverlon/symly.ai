@@ -5,6 +5,85 @@ import type { HighlightRegion } from "../chat/AiChatPanel";
 import { useMouseDrag } from "../../hooks/useMouseDrag";
 import { useResetLoadedDeskImageCount } from "../../hooks/useResetLoadedDeskImageCount";
 
+// ── Polygon union helpers ─────────────────────────────────────────────────────
+
+type Pt = [number, number];
+
+function cross(O: Pt, A: Pt, B: Pt): number {
+    return (A[0] - O[0]) * (B[1] - O[1]) - (A[1] - O[1]) * (B[0] - O[0]);
+}
+
+/** Andrew's monotone-chain convex hull. Returns points in CCW order. */
+function convexHull(pts: Pt[]): Pt[] {
+    if (pts.length < 3) return pts;
+    const sorted = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const lower: Pt[] = [];
+    for (const p of sorted) {
+        while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0)
+            lower.pop();
+        lower.push(p);
+    }
+    const upper: Pt[] = [];
+    for (let i = sorted.length - 1; i >= 0; i--) {
+        const p = sorted[i];
+        while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0)
+            upper.pop();
+        upper.push(p);
+    }
+    lower.pop();
+    upper.pop();
+    return [...lower, ...upper];
+}
+
+function aabb(cnt: Pt[]) {
+    const xs = cnt.map(([x]) => x);
+    const ys = cnt.map(([, y]) => y);
+    return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+}
+
+function aabbsOverlap(
+    a: ReturnType<typeof aabb>,
+    b: ReturnType<typeof aabb>,
+): boolean {
+    return a.x0 <= b.x1 && a.x1 >= b.x0 && a.y0 <= b.y1 && a.y1 >= b.y0;
+}
+
+/**
+ * Groups overlapping polygons (by AABB overlap, transitively via union-find).
+ * Single-member groups are returned unchanged; multi-member groups are merged
+ * into a single convex hull so overlapping boxes appear as one outline.
+ * Non-overlapping polygons are left as separate outlines.
+ */
+function computeHighlightPolygons(cnts: Pt[][]): Pt[][] {
+    if (cnts.length <= 1) return cnts;
+
+    const boxes = cnts.map(aabb);
+    const parent = cnts.map((_, i) => i);
+    function find(i: number): number {
+        if (parent[i] !== i) parent[i] = find(parent[i]);
+        return parent[i];
+    }
+
+    for (let i = 0; i < cnts.length; i++)
+        for (let j = i + 1; j < cnts.length; j++)
+            if (aabbsOverlap(boxes[i], boxes[j]))
+                parent[find(i)] = find(j);
+
+    const groups = new Map<number, Pt[]>();
+    const groupSizes = new Map<number, number>();
+    for (let i = 0; i < cnts.length; i++) {
+        const root = find(i);
+        groups.set(root, [...(groups.get(root) ?? []), ...cnts[i]]);
+        groupSizes.set(root, (groupSizes.get(root) ?? 0) + 1);
+    }
+
+    return Array.from(groups.entries()).map(([root, pts]) =>
+        (groupSizes.get(root) ?? 1) === 1
+            ? cnts[cnts.findIndex((_, i) => find(i) === root)]  // original polygon
+            : convexHull(pts),  // merged → convex hull
+    );
+}
+
 interface DeskStripProps {
     isDark?: boolean;
     deskImages: DeskImage[];
@@ -181,16 +260,17 @@ export function DeskStrip({
                                     }}
                                 />
 
-                                {/* Highlight: exact Paddle/ocr polygon in image pixel space (angled quads), not a manual AABB */}
+                                {/* Highlight: outline-only polygons; overlapping cnts are merged into a single convex hull */}
                                 {highlightRegion?.uid === img.uid && (() => {
                                     const el = imageRefs.current[index];
                                     if (!el?.naturalWidth) return null;
-                                    const { cnt } = highlightRegion;
-                                    if (cnt.length < 3) return null;
+                                    const { cnts } = highlightRegion;
+                                    const validCnts = cnts.filter((cnt) => cnt.length >= 3) as Pt[][];
+                                    if (validCnts.length === 0) return null;
                                     const pw = el.naturalWidth;
                                     const ph = el.naturalHeight;
-                                    const points = cnt.map(([x, y]) => `${x},${y}`).join(" ");
-                                    const sw = Math.max(2, Math.round(pw * 0.0015));
+                                    const sw = Math.max(2, Math.round(pw * 0.002));
+                                    const polys = computeHighlightPolygons(validCnts);
                                     return (
                                         <svg
                                             className="absolute inset-0 w-full h-full pointer-events-none z-[5] overflow-visible"
@@ -198,14 +278,17 @@ export function DeskStrip({
                                             preserveAspectRatio="xMidYMid meet"
                                             aria-hidden
                                         >
-                                            <polygon
-                                                points={points}
-                                                fill="rgba(251, 191, 36, 0.22)"
-                                                stroke="rgb(245, 158, 11)"
-                                                strokeWidth={sw}
-                                                strokeLinejoin="round"
-                                                style={{ filter: "drop-shadow(0 0 2px rgba(245, 158, 11, 0.45))" }}
-                                            />
+                                            {polys.map((poly, i) => (
+                                                <polygon
+                                                    key={i}
+                                                    points={poly.map(([x, y]) => `${x},${y}`).join(" ")}
+                                                    fill="none"
+                                                    stroke="rgb(245, 158, 11)"
+                                                    strokeWidth={sw}
+                                                    strokeLinejoin="round"
+                                                    style={{ filter: "drop-shadow(0 0 3px rgba(245, 158, 11, 0.6))" }}
+                                                />
+                                            ))}
                                         </svg>
                                     );
                                 })()}
